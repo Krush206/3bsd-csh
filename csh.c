@@ -41,7 +41,7 @@
 #include <string.h>
 #include <locale.h>
 #include <unistd.h>
-#include <vis.h>
+#include <bsd/vis.h>
 #include <stdarg.h>
 
 #include "csh.h"
