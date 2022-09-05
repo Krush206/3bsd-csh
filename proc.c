@@ -75,13 +75,12 @@ pchild(int notused)
     int pid;
     extern int insource;
     int save_errno = errno;
-    union wait w;
-    int     jobflags;
+    int     jobflags, w;
     struct rusage ru;
 
 loop:
     errno = 0;			/* reset, just in case */
-    pid = wait3(&w.w_status,
+    pid = wait3(&w,
        (setintr && (intty || insource) ? WNOHANG | WUNTRACED : WNOHANG), &ru);
 
     if (pid <= 0) {
@@ -103,7 +102,7 @@ found:
     pp->p_flags &= ~(PRUNNING | PSTOPPED | PREPORTED);
     if (WIFSTOPPED(w)) {
 	pp->p_flags |= PSTOPPED;
-	pp->p_reason = w.w_stopsig;
+	pp->p_reason = w;
     }
     else {
 	if (pp->p_flags & (PTIME | PPTIME) || adrof(STRtime))
@@ -111,16 +110,16 @@ found:
 
 	pp->p_rusage = ru;
 	if (WIFSIGNALED(w)) {
-	    if (w.w_termsig == SIGINT)
+	    if (w == SIGINT)
 		pp->p_flags |= PINTERRUPTED;
 	    else
 		pp->p_flags |= PSIGNALED;
-	    if (w.w_coredump)
+	    if (w)
 		pp->p_flags |= PDUMPED;
-	    pp->p_reason = w.w_termsig;
+	    pp->p_reason = w;
 	}
 	else {
-	    pp->p_reason = w.w_retcode;
+	    pp->p_reason = w;
 	    if (pp->p_reason != 0)
 		pp->p_flags |= PAEXITED;
 	    else
