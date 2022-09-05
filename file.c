@@ -30,6 +30,10 @@
  * SUCH DAMAGE.
  */
 
+#ifdef BIONIC
+#define MAXNAMLEN 1024
+#endif
+
 #ifdef FILEC
 
 #include <sys/param.h>

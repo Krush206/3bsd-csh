@@ -38,3 +38,6 @@ const.h: const.c
 
 csh:
 	${CC} ${CFLAGS} ${SRCS}
+
+csh_bionic:
+	${CC} ${CFLAGS} -DBIONIC ${SRCS}
