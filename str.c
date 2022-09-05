@@ -39,7 +39,7 @@
 
 #include <sys/types.h>
 #include <stdarg.h>
-#include <vis.h>
+#include <bsd/vis.h>
 
 #include "csh.h"
 #include "extern.h"
