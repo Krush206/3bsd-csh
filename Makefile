@@ -37,7 +37,7 @@ const.h: const.c
 .depend alloc.o: const.h error.h 
 
 csh:
-	${CC} ${CFLAGS} ${SRCS}
+	${CC} ${CFLAGS} ${SRCS} -lbsd
 
 csh_bionic:
-	${CC} ${CFLAGS} -DBIONIC ${SRCS}
+	${CC} ${CFLAGS} -DBIONIC ${SRCS} -lbsd
