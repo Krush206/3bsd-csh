@@ -14,7 +14,17 @@ SRCS=	alloc.c char.c const.c csh.c dir.c dol.c error.c exec.c exp.c file.c \
 	func.c glob.c hist.c init.c lex.c misc.c parse.c proc.c \
 	sem.c set.c str.c time.c
 
-CLEANFILES+=error.h const.h
+CLEANFILES+=*.o csh
+
+all:
+	${CC} -o ${PROG} ${CFLAGS} -DBIONIC ${SRCS} -lbsd
+
+clean:
+	rm -f ${CLEANFILES}
+
+install:
+	install -p csh ${PREFIX}/bin/
+	gzip -c csh.1 > ${PREFIX}/share/man/man1/csh.1.gz
 
 const.h: error.h
 
@@ -32,12 +42,5 @@ const.h: const.c
 	${CC} -E ${CFLAGS} ${.CURDIR}$*.c | egrep 'Char STR' | \
 	    sed -e 's/Char \([a-zA-Z0-9_]*\)\(.*\)/extern Char \1[];/' | \
 	    sort >> $@
-	@echo 'Type in "make csh" to build.'
 
 .depend alloc.o: const.h error.h 
-
-csh:
-	${CC} ${CFLAGS} ${SRCS} -lbsd
-
-csh_bionic:
-	${CC} ${CFLAGS} -DBIONIC ${SRCS} -lbsd
