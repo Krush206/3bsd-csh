@@ -9,12 +9,12 @@ PROG=	csh
 DFLAGS=-DBUILTIN -DFILEC -DNLS -DSHORT_STRINGS
 #CFLAGS+=-g
 #CFLAGS+=-Wall
-CFLAGS+=-z muldefs -I. ${DFLAGS}
+CFLAGS=-z muldefs -I. ${DFLAGS}
 SRCS=	alloc.c char.c const.c csh.c dir.c dol.c error.c exec.c exp.c file.c \
 	func.c glob.c hist.c init.c lex.c misc.c parse.c proc.c \
 	sem.c set.c str.c time.c
 
-CLEANFILES+=*.o csh
+CLEANFILES=*.o csh
 
 all:
 	${CC} -o ${PROG} ${CFLAGS} -DBIONIC ${SRCS} -lbsd
