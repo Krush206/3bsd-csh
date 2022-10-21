@@ -95,7 +95,7 @@ main(int argc, char *argv[])
 {
     Char *cp;
     char *tcp;
-    int f;
+    int f, *funopen();
     char **tempv;
     struct sigaction oact;
     sigset_t sigset;
