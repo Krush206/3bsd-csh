@@ -95,7 +95,7 @@ main(int argc, char *argv[])
 {
     Char *cp;
     char *tcp;
-    int f, *funopen();
+    int f;
     char **tempv;
     struct sigaction oact;
     sigset_t sigset;
@@ -190,11 +190,11 @@ main(int argc, char *argv[])
     (void) fclose(cshin);
     (void) fclose(cshout);
     (void) fclose(csherr);
-    if (!(cshin  = funopen((void *) &SHIN,  readf, writef, seekf, closef)))
+    if (!(cshin  = (FILE *) funopen((void *) &SHIN,  readf, writef, seekf, closef)))
 	exit(1);
-    if (!(cshout = funopen((void *) &SHOUT, readf, writef, seekf, closef)))
+    if (!(cshout = (FILE *) funopen((void *) &SHOUT, readf, writef, seekf, closef)))
 	exit(1);
-    if (!(csherr = funopen((void *) &SHERR, readf, writef, seekf, closef)))
+    if (!(csherr = (FILE *) funopen((void *) &SHERR, readf, writef, seekf, closef)))
 	exit(1);
     (void) setvbuf(cshin,  NULL, _IOLBF, 0);
     (void) setvbuf(cshout, NULL, _IOLBF, 0);
