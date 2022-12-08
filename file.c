@@ -379,7 +379,7 @@ extract_dir_and_name(Char *path, Char *dir, Char *name)
 static Char *
 getentry(DIR *dir_fd, int looking_for_lognames)
 {
-    struct passwd *pw, *getpwent();
+    struct passwd *pw;
     struct dirent *dirp;
 
     if (looking_for_lognames) {

@@ -30,6 +30,10 @@
  * SUCH DAMAGE.
  */
 
+#ifdef GNU
+#define GLOB_QUOTE 0x400
+#endif
+
 #include <sys/param.h>
 #include <glob.h>
 #include <errno.h>
@@ -398,7 +402,7 @@ libglob(Char **vl)
 	    break;
 	}
 	if (globv.gl_flags & GLOB_MAGCHAR) {
-	    match |= (globv.gl_matchc != 0);
+	    match |= (globv.gl_pathc != 0);
 	    magic = 1;
 	}
 	gflgs |= GLOB_APPEND;

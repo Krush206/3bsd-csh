@@ -80,7 +80,7 @@ bool    tellwhat = 0;
 extern char **environ;
 
 static int	readf(void *, char *, int);
-static fpos_t	seekf(void *, fpos_t, int);
+static off_t	seekf(void *, off_t, int);
 static int	writef(void *, const char *, int);
 static int	closef(void *);
 static int	srccat(Char *, Char *);
@@ -190,11 +190,11 @@ main(int argc, char *argv[])
     (void) fclose(cshin);
     (void) fclose(cshout);
     (void) fclose(csherr);
-    if (!(cshin  = funopen((void *) &SHIN,  readf, writef, seekf, closef)))
+    if (!(cshin  = (FILE *) funopen((void *) &SHIN,  readf, writef, seekf, closef)))
 	exit(1);
-    if (!(cshout = funopen((void *) &SHOUT, readf, writef, seekf, closef)))
+    if (!(cshout = (FILE *) funopen((void *) &SHOUT, readf, writef, seekf, closef)))
 	exit(1);
-    if (!(csherr = funopen((void *) &SHERR, readf, writef, seekf, closef)))
+    if (!(csherr = (FILE *) funopen((void *) &SHERR, readf, writef, seekf, closef)))
 	exit(1);
     (void) setvbuf(cshin,  NULL, _IOLBF, 0);
     (void) setvbuf(cshout, NULL, _IOLBF, 0);
@@ -1221,8 +1221,8 @@ writef(void *oreo, const char *buf, int siz)
     return write(DESC(oreo), buf, siz);
 }
 
-static fpos_t
-seekf(void *oreo, fpos_t off, int whence)
+static off_t
+seekf(void *oreo, off_t off, int whence)
 {
     return lseek(DESC(oreo), off, whence);
 }

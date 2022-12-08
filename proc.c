@@ -30,6 +30,17 @@
  * SUCH DAMAGE.
  */
 
+#ifdef GNU
+#include <stddef.h>
+#include <signal.h>
+char *sys_signame[NSIG] = {
+    "zero",  "HUP",  "INT",   "QUIT", "ILL",   "TRAP", "IOT",  "UNUSED",
+    "FPE",   "KILL", "USR1",  "SEGV", "USR2",  "PIPE", "ALRM", "TERM",
+    "STKFLT","CHLD", "CONT",  "STOP", "TSTP",  "TTIN", "TTOU", "IO",
+    "XCPU",  "XFSZ", "VTALRM","PROF", "WINCH", NULL
+};
+#endif
+
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <errno.h>
