@@ -38,7 +38,9 @@
 #include <errno.h>
 #include <pwd.h>
 #include <stdlib.h>
-#include <string.h>
+#include <bsd/stdio.h>
+#include <bsd/string.h>
+#include <time.h>
 #include <locale.h>
 #include <unistd.h>
 #include <bsd/vis.h>
@@ -95,7 +97,7 @@ main(int argc, char *argv[])
 {
     Char *cp;
     char *tcp;
-    int f, *funopen();
+    int f;
     char **tempv;
     struct sigaction oact;
     sigset_t sigset;
@@ -190,11 +192,11 @@ main(int argc, char *argv[])
     (void) fclose(cshin);
     (void) fclose(cshout);
     (void) fclose(csherr);
-    if (!(cshin  = (FILE *) funopen((void *) &SHIN,  readf, writef, seekf, closef)))
+    if (!(cshin  = funopen((void *) &SHIN,  readf, writef, seekf, closef)))
 	exit(1);
-    if (!(cshout = (FILE *) funopen((void *) &SHOUT, readf, writef, seekf, closef)))
+    if (!(cshout = funopen((void *) &SHOUT, readf, writef, seekf, closef)))
 	exit(1);
-    if (!(csherr = (FILE *) funopen((void *) &SHERR, readf, writef, seekf, closef)))
+    if (!(csherr = funopen((void *) &SHERR, readf, writef, seekf, closef)))
 	exit(1);
     (void) setvbuf(cshin,  NULL, _IOLBF, 0);
     (void) setvbuf(cshout, NULL, _IOLBF, 0);

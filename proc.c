@@ -46,7 +46,8 @@ char *sys_signame[NSIG] = {
 #include <errno.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <string.h>
+#include <bsd/stdio.h>
+#include <bsd/string.h>
 #include <stdarg.h>
 
 #include "csh.h"
