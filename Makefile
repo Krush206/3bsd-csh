@@ -17,7 +17,7 @@ SRCS=	alloc.c char.c const.c csh.c dir.c dol.c error.c exec.c exp.c file.c \
 CLEANFILES=*.o csh
 
 all:
-	${CC} -o ${PROG} ${CFLAGS} -DBIONIC ${SRCS} -lbsd
+	${CC} --std=c89 -o ${PROG} ${CFLAGS} -DBIONIC ${SRCS} -lbsd
 
 clean:
 	rm -f ${CLEANFILES}
