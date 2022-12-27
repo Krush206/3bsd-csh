@@ -37,6 +37,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <pwd.h>
+#include <bsd/stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <locale.h>
@@ -190,11 +191,11 @@ main(int argc, char *argv[])
     (void) fclose(cshin);
     (void) fclose(cshout);
     (void) fclose(csherr);
-    if (!(cshin  = (FILE *) funopen((void *) &SHIN,  readf, writef, seekf, closef)))
+    if (!(cshin  = funopen((void *) &SHIN,  readf, writef, seekf, closef)))
 	exit(1);
-    if (!(cshout = (FILE *) funopen((void *) &SHOUT, readf, writef, seekf, closef)))
+    if (!(cshout = funopen((void *) &SHOUT, readf, writef, seekf, closef)))
 	exit(1);
-    if (!(csherr = (FILE *) funopen((void *) &SHERR, readf, writef, seekf, closef)))
+    if (!(csherr = funopen((void *) &SHERR, readf, writef, seekf, closef)))
 	exit(1);
     (void) setvbuf(cshin,  NULL, _IOLBF, 0);
     (void) setvbuf(cshout, NULL, _IOLBF, 0);
