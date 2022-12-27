@@ -44,6 +44,7 @@
 #include <unistd.h>
 #include <bsd/vis.h>
 #include <stdarg.h>
+#include <time.h>
 
 #include "csh.h"
 #include "proc.h"
