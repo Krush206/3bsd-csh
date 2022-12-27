@@ -80,7 +80,7 @@ pchild(int notused)
 
 loop:
     errno = 0;			/* reset, just in case */
-    pid = wait3(&w,
+    pid = wait4((pid_t)-1, &w,
        (setintr && (intty || insource) ? WNOHANG | WUNTRACED : WNOHANG), &ru);
 
     if (pid <= 0) {
