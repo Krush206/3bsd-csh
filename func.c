@@ -1454,3 +1454,36 @@ doprintf(Char **v, struct command *t)
     if (ret)
 	stderror(ERR_SILENT);
 }
+
+void
+dofunction(Char **v, struct command *t)
+{
+    int i;
+
+    if (!ffile)
+	stderror(ERR_DOLFUNC, "Functions are only supported for scripts.");
+
+    for (i = 0; v[i]; i++)
+	;
+
+    {
+	int j;
+	Char *vs[i + 2];
+
+	vs[sizeof vs / sizeof(Char *) - 1] = NULL;
+	for (j = i--; i; i--, j--) {
+	    vs[j] = malloc(((Strlen(v[i]) + 1) * sizeof(Char)));
+	    Strcpy(vs[j], v[i]);
+	}
+	vs[1] = malloc(Strlen(ffile) + 1);
+	Strcpy(vs[1], ffile);
+	*vs = malloc(Strlen(*v) + 1);
+	Strcpy(*vs, *v);
+	execfunc = 1;
+
+	dosource(fargv.v = vs, fargv.t = t);
+
+	for (i = 0; vs[i]; i++)
+	    free(vs[i]);
+    }
+}

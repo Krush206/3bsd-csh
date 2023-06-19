@@ -1087,6 +1087,26 @@ process(int catch)
     t = savet;    
     savet = NULL;
     getexit(osetexit);
+
+    /* If this is a function, setup STRargv and invoke goto */
+    if (execfunc) {
+	int i;
+	Char **vs;
+
+	for(i = 0; fargv.v[i + 3]; i++)
+	    ;
+	vs = xmalloc((i + 1) * sizeof(Char *));
+
+	for(i = 0; fargv.v[i + 3]; i++) {
+	    vs[i] = xmalloc((Strlen(fargv.v[i + 3]) + 1) * sizeof(Char *));
+	    Strcpy(vs[i], fargv.v[i + 3]);
+	}
+
+	setq(STRargv, vs, &shvhed);
+	dogoto(&fargv.v[1], fargv.t);
+	execfunc = 0;
+    }
+
     for (;;) {
 	pendjob();
 	paraml.next = paraml.prev = &paraml;
