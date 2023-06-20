@@ -181,6 +181,9 @@ int nverbose = 0;
 int prompt = 1;
 int quitit = 0;
 int reenter = 0;
+int execfunc = 0;
+struct funcargs fargv[BUFSIZE],
+		*fnode;
 
 extern char **environ;
 
@@ -1102,7 +1105,6 @@ process(int catch)
     if (execfunc) {
 	setq(STRargv, &fnode->v[3], &shvhed);
 	dogoto(&fnode->v[1], fnode->t);
-	execfunc = 0;
     }
 
     for (;;) {
@@ -1234,6 +1236,13 @@ process(int catch)
 	freelex(&paraml);
 	freesyn(savet), savet = NULL;
     }
+
+    if (execfunc) {
+	/* Reset STRargv on function exit. */
+	set(STRargv, NULL);
+	execfunc = 0;
+    }
+
     resexit(osetexit);
     savet = t;
 }
