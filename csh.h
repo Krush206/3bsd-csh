@@ -558,6 +558,6 @@ extern int execfunc;
 extern struct funcargs {
     Char **v;
     struct command *t;
-} fargv;
+} fargv[],  *fnode;
 
 #endif /* !_CSH_H_ */

@@ -1458,32 +1458,40 @@ doprintf(Char **v, struct command *t)
 void
 dofunction(Char **v, struct command *t)
 {
-    int i;
-
     if (!ffile)
 	stderror(ERR_DOLFUNC, "Functions are only supported for scripts.");
 
-    for (i = 0; v[i]; i++)
-	;
-
     {
-	int j;
-	Char *vs[i + 2];
+	int i, j;
+	Char **vh;
 
-	vs[sizeof vs / sizeof(Char *) - 1] = NULL;
+	for (i = 0; v[i]; i++)
+	    ;
+
+	vh = xmalloc((i + 2) * sizeof(Char *));
+	vh[i + 1] = NULL;
+
 	for (j = i--; i; i--, j--) {
-	    vs[j] = malloc(((Strlen(v[i]) + 1) * sizeof(Char)));
-	    Strcpy(vs[j], v[i]);
+	    vh[j] = xmalloc(((Strlen(v[i]) + 1) * sizeof(Char)));
+	    Strcpy(vh[j], v[i]);
 	}
-	vs[1] = malloc(Strlen(ffile) + 1);
-	Strcpy(vs[1], ffile);
-	*vs = malloc(Strlen(*v) + 1);
-	Strcpy(*vs, *v);
+	vh[1] = xmalloc(Strlen(ffile) + 1);
+	Strcpy(vh[1], ffile);
+	*vh = xmalloc(Strlen(*v) + 1);
+	Strcpy(*vh, *v);
 	execfunc = 1;
 
-	dosource(fargv.v = vs, fargv.t = t);
+	for (i = j = BUFSIZE / 2; i >= 0 && j < BUFSIZE; i--, j++) {
+	    if (!fargv[i].v) {
+		fnode = &fargv[i];
+		break;
+	    }
+	    else if (!fargv[j].v) {
+		fnode = &fargv[j];
+	        break;
+	    }
+	}
 
-	for (i = 0; vs[i]; i++)
-	    free(vs[i]);
+	dosource(fnode->v = vh, fnode->t = t);
     }
 }

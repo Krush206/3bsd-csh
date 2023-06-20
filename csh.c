@@ -647,6 +647,16 @@ notty:
     if (nexececho)
 	setNS(STRecho);
 
+    /* Initialize function struct array. */
+    {
+	int i, j;
+
+	for (i = j = BUFSIZE / 2; i && j < BUFSIZE; i--, j++) {
+	    fargv[i].v = NULL;
+	    fargv[j].v = NULL;
+	}
+    }
+
     /*
      * All the rest of the world is inside this call. The argument to process
      * indicates whether it should catch "error unwinds".  Thus if we are a
@@ -1088,22 +1098,10 @@ process(int catch)
     savet = NULL;
     getexit(osetexit);
 
-    /* If this is a function, setup STRargv and invoke goto */
+    /* If this is a function, setup STRargv and invoke goto. */
     if (execfunc) {
-	int i;
-	Char **vs;
-
-	for(i = 0; fargv.v[i + 3]; i++)
-	    ;
-	vs = xmalloc((i + 1) * sizeof(Char *));
-
-	for(i = 0; fargv.v[i + 3]; i++) {
-	    vs[i] = xmalloc((Strlen(fargv.v[i + 3]) + 1) * sizeof(Char *));
-	    Strcpy(vs[i], fargv.v[i + 3]);
-	}
-
-	setq(STRargv, vs, &shvhed);
-	dogoto(&fargv.v[1], fargv.t);
+	setq(STRargv, &fnode->v[3], &shvhed);
+	dogoto(&fnode->v[1], fnode->t);
 	execfunc = 0;
     }
 
