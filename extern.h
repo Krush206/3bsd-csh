@@ -127,6 +127,7 @@ void doend(Char **, struct command *);
 void doeval(Char **, struct command *);
 void doexit(Char **, struct command *);
 void doforeach(Char **, struct command *);
+void dofunction(Char **, struct command *);
 void doglob(Char **, struct command *);
 void dogoto(Char **, struct command *);
 void doif(Char **, struct command *);

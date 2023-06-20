@@ -1481,17 +1481,8 @@ dofunction(Char **v, struct command *t)
 	Strcpy(*vh, *v);
 	execfunc = 1;
 
-	for (i = j = BUFSIZE / 2; i >= 0 && j < BUFSIZE; i--, j++) {
-	    if (!fargv[i].v) {
-		fnode = &fargv[i];
-		break;
-	    }
-	    else if (!fargv[j].v) {
-		fnode = &fargv[j];
-	        break;
-	    }
-	}
+	fargv = malloc(sizeof *fargv);
 
-	dosource(fnode->v = vh, fnode->t = t);
+	dosource(fargv->v = vh, fargv->t = t);
     }
 }

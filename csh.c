@@ -182,8 +182,7 @@ int prompt = 1;
 int quitit = 0;
 int reenter = 0;
 int execfunc = 0;
-struct funcargs fargv[BUFSIZE],
-		*fnode;
+struct funcargs *fargv;
 
 extern char **environ;
 
@@ -649,16 +648,6 @@ notty:
 	setNS(STRverbose);
     if (nexececho)
 	setNS(STRecho);
-
-    /* Initialize function struct array. */
-    {
-	int i, j;
-
-	for (i = j = BUFSIZE / 2; i && j < BUFSIZE; i--, j++) {
-	    fargv[i].v = NULL;
-	    fargv[j].v = NULL;
-	}
-    }
 
     /*
      * All the rest of the world is inside this call. The argument to process
@@ -1240,6 +1229,7 @@ process(int catch)
     if (execfunc) {
 	/* Reset STRargv on function exit. */
 	set(STRargv, NULL);
+	free(fargv);
 	execfunc = 0;
     }
 
