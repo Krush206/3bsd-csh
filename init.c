@@ -68,6 +68,7 @@ struct biltins bfunc[] =
     { "exit", 		doexit, 	0, INF	},
     { "fg", 		dofg, 		0, INF	},
     { "foreach", 	doforeach, 	3, INF	},
+    { "function", 	dofunction, 	1, INF	},
     { "glob", 		doglob, 	0, INF	},
     { "goto", 		dogoto, 	1, 1	},
     { "hashstat", 	hashstat, 	0, 0	},

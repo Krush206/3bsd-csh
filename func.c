@@ -1452,3 +1452,35 @@ doprintf(Char **v, struct command *t)
     if (ret)
 	stderror(ERR_SILENT);
 }
+
+void
+dofunction(Char **v, struct command *t)
+{
+    if (!ffile)
+	stderror(ERR_DOLFUNC, "Functions are only supported for scripts.");
+
+    {
+	int i, j;
+	Char **vh;
+
+	for (i = 0; v[i]; i++)
+	    ;
+
+	vh = xmalloc((i + 2) * sizeof(Char *));
+	vh[i + 1] = NULL;
+
+	for (j = i--; i; i--, j--) {
+	    vh[j] = xmalloc(((Strlen(v[i]) + 1) * sizeof(Char)));
+	    Strcpy(vh[j], v[i]);
+	}
+	vh[1] = xmalloc(Strlen(ffile) + 1);
+	Strcpy(vh[1], ffile);
+	*vh = xmalloc(Strlen(*v) + 1);
+	Strcpy(*vh, *v);
+	execfunc = 1;
+
+	fargv = malloc(sizeof *fargv);
+
+	dosource(fargv->v = vh, fargv->t = t);
+    }
+}

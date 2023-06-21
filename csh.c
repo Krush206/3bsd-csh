@@ -182,6 +182,8 @@ int nverbose = 0;
 int prompt = 1;
 int quitit = 0;
 int reenter = 0;
+int execfunc = 0;
+struct funcargs *fargv;
 
 extern char **environ;
 
@@ -1085,6 +1087,13 @@ process(int catch)
     t = savet;    
     savet = NULL;
     getexit(osetexit);
+
+    /* If this is a function, setup STRargv and invoke goto. */
+    if (execfunc) {
+       setq(STRargv, &fargv->v[3], &shvhed);
+       dogoto(&fargv->v[1], fargv->t);
+    }
+
     for (;;) {
 	pendjob();
 	paraml.next = paraml.prev = &paraml;
@@ -1214,6 +1223,14 @@ process(int catch)
 	freelex(&paraml);
 	freesyn(savet), savet = NULL;
     }
+
+    if (execfunc) {
+       /* Reset STRargv on function exit. */
+       set(STRargv, NULL);
+       free(fargv);
+       execfunc = 0;
+    }
+
     resexit(osetexit);
     savet = t;
 }

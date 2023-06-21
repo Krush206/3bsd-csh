@@ -113,7 +113,8 @@
 #define ERR_ARCH        107
 #define ERR_FILEINQ	108
 #define ERR_SELOVFL	109
-#define ERR_INVALID	110
+#define ERR_DOLFUNC	110
+#define ERR_INVALID	111
 #define ERR_FLAGS	((int)0xf0000000)
 #define ERR_NAME	0x10000000
 #define ERR_SILENT	0x20000000
@@ -228,5 +229,6 @@
 #define ERR_ARCH        107
 #define ERR_FILEINQ	108
 #define ERR_SELOVFL	109
-#define ERR_INVALID	110
+#define ERR_DOLFUNC	110
+#define ERR_INVALID	111
 #endif /* _h_sh_errnum */
