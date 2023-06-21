@@ -32,7 +32,8 @@ all:
 	${CC} -o ${PROG} ${CFLAGS} ${SRCS} -lbsd -ledit
 
 install:
-	install csh -Dm755 /usr/bin/${PROG}
+	install -Dm755 ${PROG} /usr/local/bin/${PROG}
+	install -Dm600 ${PROG}.1 /usr/local/share/man/man1/${PROG}.1
 
 errnum.h: err.c
 	rm -f $@
