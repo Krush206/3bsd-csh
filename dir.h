@@ -1,5 +1,4 @@
-/*	$OpenBSD: dir.h,v 1.3 2003/06/02 23:32:07 millert Exp $	*/
-/*	$NetBSD: dir.h,v 1.6 1995/03/21 09:02:44 cgd Exp $	*/
+/* $NetBSD: dir.h,v 1.9 2020/04/03 18:11:29 joerg Exp $ */
 
 /*-
  * Copyright (c) 1980, 1991, 1993
@@ -32,6 +31,9 @@
  *	@(#)dir.h	8.1 (Berkeley) 5/31/93
  */
 
+#ifndef _DIR_H_
+#define _DIR_H_
+
 /*
  * Structure for entries in directory stack.
  */
@@ -41,4 +43,6 @@ struct directory {
     unsigned short *di_count;	/* refcount of processes */
     Char   *di_name;		/* actual name */
 };
-struct directory *dcwd;		/* the one we are in now */
+extern struct directory *dcwd;	/* the one we are in now */
+
+#endif /* !_DIR_H_ */

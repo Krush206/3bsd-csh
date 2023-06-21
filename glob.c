@@ -1,5 +1,4 @@
-/*	$OpenBSD: glob.c,v 1.13 2009/10/27 23:59:21 deraadt Exp $	*/
-/*	$NetBSD: glob.c,v 1.10 1995/03/21 09:03:01 cgd Exp $	*/
+/* $NetBSD: glob.c,v 1.31 2019/01/05 16:56:25 christos Exp $ */
 
 /*-
  * Copyright (c) 1980, 1991, 1993
@@ -30,28 +29,39 @@
  * SUCH DAMAGE.
  */
 
+#include <sys/cdefs.h>
+#ifndef lint
+#if 0
+static char sccsid[] = "@(#)glob.c	8.1 (Berkeley) 5/31/93";
+#else
+__RCSID("$NetBSD: glob.c,v 1.31 2019/01/05 16:56:25 christos Exp $");
+#endif
+#endif /* not lint */
+
 #include <sys/param.h>
-#include <glob.h>
+
 #include <errno.h>
+#include <glob.h>
+#include <stdarg.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <stdarg.h>
 
 #include "csh.h"
 #include "extern.h"
 
 static int noglob;
-static int pargsiz, gargsiz;
+static int gargsiz, pargsiz;
 
 /*
  * Values for gflag
  */
-#define	G_NONE	0		/* No globbing needed			*/
-#define	G_GLOB	1		/* string contains *?[] characters	*/
-#define	G_CSH	2		/* string contains ~`{ characters	*/
+#define	G_NONE 0		/* No globbing needed			*/
+#define	G_GLOB 1		/* string contains *?[] characters	*/
+#define	G_CSH 2			/* string contains ~`{ characters	*/
 
-#define	GLOBSPACE	100	/* Alloc increment			*/
+#define	GLOBSPACE 100		/* Alloc increment			*/
 
 #define LBRC '{'
 #define RBRC '}'
@@ -59,10 +69,10 @@ static int pargsiz, gargsiz;
 #define RBRK ']'
 #define EOS '\0'
 
-Char  **gargv = NULL;
-long    gargc = 0;
-Char  **pargv = NULL;
-long    pargc = 0;
+Char **gargv = NULL;
+Char **pargv = NULL;
+long gargc = 0;
+long pargc = 0;
 
 /*
  * globbing is now done in two stages. In the first pass we expand
@@ -73,21 +83,21 @@ long    pargc = 0;
  * handled in glob() which is part of the 4.4BSD libc.
  *
  */
-static Char	*globtilde(Char **, Char *);
-static Char	**libglob(Char **);
-static Char	**globexpand(Char **);
-static int	globbrace(Char *, Char *, Char ***);
-static void	expbrace(Char ***, Char ***, int);
-static int	pmatch(Char *, Char *);
-static void	pword(void);
-static void	psave(int);
-static void	backeval(Char *, bool);
-
+static Char *globtilde(Char **, Char *);
+static Char *handleone(Char *, Char **, int);
+static Char **libglob(Char **);
+static Char **globexpand(Char **);
+static int globbrace(Char *, Char *, Char ***);
+static void expbrace(Char ***, Char ***, size_t);
+static int pmatch(const Char *, const Char *);
+static void pword(void);
+static void psave(int);
+static void backeval(Char *, int);
 
 static Char *
 globtilde(Char **nv, Char *s)
 {
-    Char    gbuf[MAXPATHLEN], *gstart, *b, *u, *e;
+    Char gbuf[MAXPATHLEN], *b, *e, *gstart, *u;
 
     gstart = gbuf;
     *gstart++ = *s++;
@@ -97,7 +107,7 @@ globtilde(Char **nv, Char *s)
 	 *b++ = *s++)
 	 continue;
     *b = EOS;
-    if (gethdir(gstart, &gbuf[sizeof(gbuf)/sizeof(Char)] - gstart)) {
+    if (gethdir(gstart)) {
 	blkfree(nv);
 	if (*gstart)
 	    stderror(ERR_UNKUSER, vis_str(gstart));
@@ -109,22 +119,20 @@ globtilde(Char **nv, Char *s)
 	*b++ = *s++;
     *b = EOS;
     --u;
-    xfree((ptr_t) u);
+    free(u);
     return (Strsave(gstart));
 }
 
 static int
 globbrace(Char *s, Char *p, Char ***bl)
 {
-    int     i, len;
-    Char   *pm, *pe, *lm, *pl;
-    Char  **nv, **vl;
-    Char    gbuf[MAXPATHLEN];
-    int     size = GLOBSPACE;
+    Char gbuf[MAXPATHLEN];
+    Char *lm, *pe, *pl, *pm, **nv, **vl;
+    int i, len, size;
 
-    nv = vl = (Char **) xmalloc((size_t) sizeof(Char *) * size);
+    size = GLOBSPACE;
+    nv = vl = xmalloc(sizeof(Char *) * (size_t)size);
     *vl = NULL;
-
     len = 0;
     /* copy part up to the brace */
     for (lm = gbuf, p = s; *p != LBRC; *lm++ = *p++)
@@ -181,16 +189,15 @@ globbrace(Char *s, Char *p, Char ***bl)
 		Char    savec = *pm;
 
 		*pm = EOS;
-		(void) Strlcpy(lm, pl, &gbuf[sizeof(gbuf)/sizeof(Char)] - lm);
-		(void) Strlcat(gbuf, pe + 1, MAXPATHLEN);
+		(void)Strcpy(lm, pl);
+		(void)Strcat(gbuf, pe + 1);
 		*pm = savec;
 		*vl++ = Strsave(gbuf);
 		len++;
 		pl = pm + 1;
 		if (vl == &nv[size]) {
 		    size += GLOBSPACE;
-		    nv = (Char **) xrealloc((ptr_t) nv, (size_t)
-					    size * sizeof(Char *));
+		    nv = xrealloc(nv, (size_t)size * sizeof(Char *));
 		    vl = &nv[size - GLOBSPACE];
 		}
 	    }
@@ -203,80 +210,76 @@ globbrace(Char *s, Char *p, Char ***bl)
     return (len);
 }
 
-
 static void
-expbrace(Char ***nvp, Char ***elp, int size)
+expbrace(Char ***nvp, Char ***elp, size_t size)
 {
-    Char **vl, **el, **nv, *s;
+    Char **ex, **nv, *s, **vl;
 
     vl = nv = *nvp;
     if (elp != NULL)
-	el = *elp;
+	ex = *elp;
     else
-	for (el = vl; *el; el++)
+	for (ex = vl; *ex; ex++)
 	    continue;
 
     for (s = *vl; s; s = *++vl) {
-	Char   *b;
-	Char  **vp, **bp;
+	Char *b, **bp, **vp;
 
 	/* leave {} untouched for find */
 	if (s[0] == '{' && (s[1] == '\0' || (s[1] == '}' && s[2] == '\0')))
 	    continue;
 	if ((b = Strchr(s, '{')) != NULL) {
-	    Char  **bl;
-	    int     len;
+	    Char **bl;
+	    int len;
 
 	    if ((len = globbrace(s, b, &bl)) < 0) {
-		xfree((ptr_t) nv);
+		free(nv);
 		stderror(ERR_MISSING, -len);
 	    }
-	    xfree((ptr_t) s);
+	    free(s);
 	    if (len == 1) {
 		*vl-- = *bl;
-		xfree((ptr_t) bl);
+		free(bl);
 		continue;
 	    }
 	    len = blklen(bl);
-	    if (&el[len] >= &nv[size]) {
-		int     l, e;
+	    if (&ex[len] >= &nv[size]) {
+		ptrdiff_t l, e;
 
-		l = &el[len] - &nv[size];
-		size += GLOBSPACE > l ? GLOBSPACE : l;
+		l = &ex[len] - &nv[size];
+		size += (size_t)(GLOBSPACE > l ? GLOBSPACE : l);
 		l = vl - nv;
-		e = el - nv;
-		nv = (Char **) xrealloc((ptr_t) nv, (size_t)
-					size * sizeof(Char *));
+		e = ex - nv;
+		nv = xrealloc(nv, (size_t)size * sizeof(Char *));
 		vl = nv + l;
-		el = nv + e;
+		ex = nv + e;
 	    }
 	    vp = vl--;
 	    *vp = *bl;
 	    len--;
-	    for (bp = el; bp != vp; bp--)
+	    for (bp = ex; bp != vp; bp--)
 		bp[len] = *bp;
-	    el += len;
+	    ex += len;
 	    vp++;
 	    for (bp = bl + 1; *bp; *vp++ = *bp++)
 		continue;
-	    xfree((ptr_t) bl);
+	    free(bl);
 	}
 
     }
     if (elp != NULL)
-	*elp = el;
+	*elp = ex;
     *nvp = nv;
 }
 
 static Char **
 globexpand(Char **v)
 {
-    Char   *s;
-    Char  **nv, **vl, **el;
-    int     size = GLOBSPACE;
+    Char **ex, **nv, *s, **vl;
+    size_t size;
 
-
-    nv = vl = (Char **) xmalloc((size_t) sizeof(Char *) * size);
+    size = GLOBSPACE;
+    nv = vl = xmalloc(sizeof(Char *) * size);
     *vl = NULL;
 
     /*
@@ -284,27 +287,25 @@ globexpand(Char **v)
      */
     while ((s = *v++) != NULL) {
 	if (Strchr(s, '`')) {
-	    int     i;
+	    int i;
 
 	    (void) dobackp(s, 0);
 	    for (i = 0; i < pargc; i++) {
 		*vl++ = pargv[i];
 		if (vl == &nv[size]) {
 		    size += GLOBSPACE;
-		    nv = (Char **) xrealloc((ptr_t) nv,
-					    (size_t) size * sizeof(Char *));
+		    nv = xrealloc(nv, (size_t)size * sizeof(Char *));
 		    vl = &nv[size - GLOBSPACE];
 		}
 	    }
-	    xfree((ptr_t) pargv);
+	    free(pargv);
 	    pargv = NULL;
 	}
 	else {
 	    *vl++ = Strsave(s);
 	    if (vl == &nv[size]) {
 		size += GLOBSPACE;
-		nv = (Char **) xrealloc((ptr_t) nv, (size_t)
-					size * sizeof(Char *));
+		nv = xrealloc(nv, size * sizeof(Char *));
 		vl = &nv[size - GLOBSPACE];
 	    }
 	}
@@ -317,8 +318,8 @@ globexpand(Char **v)
     /*
      * Step 2: expand braces
      */
-    el = vl;
-    expbrace(&nv, &el, size);
+    ex = vl;
+    expbrace(&nv, &ex, size);
 
     /*
      * Step 3: expand ~
@@ -334,26 +335,25 @@ globexpand(Char **v)
 static Char *
 handleone(Char *str, Char **vl, int action)
 {
+    Char *cp, **vlp;
 
-    Char   *cp, **vlp = vl;
-
+    vlp = vl;
     switch (action) {
     case G_ERROR:
 	setname(vis_str(str));
 	blkfree(vl);
 	stderror(ERR_NAME | ERR_AMBIG);
-	break;
+	/* NOTREACHED */
     case G_APPEND:
 	trim(vlp);
 	str = Strsave(*vlp++);
 	do {
 	    cp = Strspl(str, STRspace);
-	    xfree((ptr_t) str);
+	    free(str);
 	    str = Strspl(cp, *vlp);
-	    xfree((ptr_t) cp);
+	    free(cp);
 	}
-	while (*++vlp)
-	    ;
+	while (*++vlp);
 	blkfree(vl);
 	break;
     case G_IGNORE:
@@ -369,10 +369,14 @@ handleone(Char *str, Char **vl, int action)
 static Char **
 libglob(Char **vl)
 {
-    int     gflgs = GLOB_QUOTE | GLOB_NOMAGIC;
-    glob_t  globv;
-    char   *ptr;
-    int     nonomatch = adrof(STRnonomatch) != 0, magic = 0, match = 0;
+    glob_t globv;
+    char *ptr;
+    int gflgs, magic, match, nonomatch;
+
+    gflgs = GLOB_NOMAGIC;
+    magic = 0;
+    match = 0;
+    nonomatch = adrof(STRnonomatch) != 0;
 
     if (!vl || !vl[0])
 	return (vl);
@@ -403,19 +407,18 @@ libglob(Char **vl)
 	}
 	gflgs |= GLOB_APPEND;
     }
-    while (*++vl)
-	;
+    while (*++vl);
     vl = (globv.gl_pathc == 0 || (magic && !match && !nonomatch)) ?
 	NULL : blk2short(globv.gl_pathv);
     globfree(&globv);
     return (vl);
 }
 
-Char   *
+Char *
 globone(Char *str, int action)
 {
-    Char   *v[2], **vl, **vo;
-    int    gflg;
+    Char *v[2], **vl, **vo;
+    int gflg;
 
     noglob = adrof(STRnoglob) != 0;
     gflag = 0;
@@ -433,14 +436,14 @@ globone(Char *str, int action)
 	vo = globexpand(v);
 	if (noglob || (gflg & G_GLOB) == 0) {
 	    if (vo[0] == NULL) {
-		xfree((ptr_t) vo);
+		free(vo);
 		return (Strsave(STRNULL));
 	    }
 	    if (vo[1] != NULL)
 		return (handleone(str, vo, action));
 	    else {
 		str = strip(vo[0]);
-		xfree((ptr_t) vo);
+		free(vo);
 		return (str);
 	    }
 	}
@@ -458,14 +461,14 @@ globone(Char *str, int action)
 	stderror(ERR_NAME | ERR_NOMATCH);
     }
     if (vl[0] == NULL) {
-	xfree((ptr_t) vl);
+	free(vl);
 	return (Strsave(STRNULL));
     }
     if (vl[1] != NULL)
 	return (handleone(str, vl, action));
     else {
 	str = strip(*vl);
-	xfree((ptr_t) vl);
+	free(vl);
 	return (str);
     }
 }
@@ -473,9 +476,10 @@ globone(Char *str, int action)
 Char  **
 globall(Char **v)
 {
-    Char  **vl, **vo;
-    int   gflg = gflag;
+    Char **vl, **vo;
+    int gflg;
 
+    gflg = gflag;
     if (!v || !v[0]) {
 	gargv = saveblk(v);
 	gargc = blklen(gargv);
@@ -508,7 +512,7 @@ void
 ginit(void)
 {
     gargsiz = GLOBSPACE;
-    gargv = (Char **) xmalloc((size_t) sizeof(Char *) * gargsiz);
+    gargv = xmalloc(sizeof(Char *) * (size_t)gargsiz);
     gargv[0] = 0;
     gargc = 0;
 }
@@ -550,7 +554,7 @@ tglob(Char **t)
 	     */
 	    if (c == '`') {
 		gflag |= G_CSH;
-		while (*p && *p != '`')
+		while (*p && *p != '`') 
 		    if (*p++ == '\\') {
 			if (*p)		/* Quoted chars */
 			    p++;
@@ -575,11 +579,10 @@ tglob(Char **t)
  * << redirection, and so we should not crunch blanks and tabs, separating
  * words only at newlines.
  */
-Char  **
-dobackp(Char *cp, bool literal)
+Char **
+dobackp(Char *cp, int literal)
 {
-    Char *lp, *rp;
-    Char   *ep, word[MAXPATHLEN];
+    Char word[MAXPATHLEN], *ep, *lp, *rp;
 
     if (pargv) {
 #ifdef notdef
@@ -588,7 +591,7 @@ dobackp(Char *cp, bool literal)
 	blkfree(pargv);
     }
     pargsiz = GLOBSPACE;
-    pargv = (Char **) xmalloc((size_t) sizeof(Char *) * pargsiz);
+    pargv = xmalloc(sizeof(Char *) * (size_t)pargsiz);
     pargv[0] = NULL;
     pargcp = pargs = word;
     pargc = 0;
@@ -609,8 +612,10 @@ dobackp(Char *cp, bool literal)
 		if (!*rp)
 		    goto oops;
 	    }
-	if (!*rp)
-    oops:  stderror(ERR_UNMATCHED, '`');
+	if (!*rp) {
+	oops:
+	    stderror(ERR_UNMATCHED, '`');
+	}
 	ep = Strsave(lp);
 	ep[rp - lp] = 0;
 	backeval(ep, literal);
@@ -619,15 +624,14 @@ dobackp(Char *cp, bool literal)
 }
 
 static void
-backeval(Char *cp, bool literal)
+backeval(Char *cp, int literal)
 {
-    int icnt, c;
-    Char *ip;
     struct command faket;
-    bool    hadnl;
-    int     pvec[2], quoted;
-    Char   *fakecom[2], ibuf[BUFSIZ];
-    char    tibuf[BUFSIZ];
+    char tibuf[BUFSIZE];
+    Char ibuf[BUFSIZE], *fakecom[2], *ip;
+    int pvec[2], c, quoted;
+    ssize_t icnt;
+    int hadnl;
 
     hadnl = 0;
     icnt = 0;
@@ -657,12 +661,12 @@ backeval(Char *cp, bool literal)
      */
     mypipe(pvec);
     if (pfork(&faket, -1) == 0) {
-	struct wordent paraml;
+	struct wordent fparaml;
 	struct command *t;
 
-	(void) close(pvec[0]);
-	(void) dmove(pvec[1], 1);
-	(void) dmove(SHERR, 2);
+	(void)close(pvec[0]);
+	(void)dmove(pvec[1], 1);
+	(void)dmove(SHERR, 2);
 	initdesc();
 	/*
 	 * Bugfix for nested backquotes by Michael Greim <greim@sbsvax.UUCP>,
@@ -672,10 +676,13 @@ backeval(Char *cp, bool literal)
 	    blkfree(pargv), pargv = 0, pargsiz = 0;
 	/* mg, 21.dec.88 */
 	arginp = cp;
-	while (*cp)
-	    *cp++ &= TRIM;
+	for (arginp = cp; *cp; cp++) {
+	    *cp &= TRIM;
+	    if (*cp == '\n' || *cp == '\r')
+		*cp = ';';
+	}
 
-	/*
+        /*
 	 * In the child ``forget'' everything about current aliases or
 	 * eval vectors.
 	 */
@@ -683,35 +690,37 @@ backeval(Char *cp, bool literal)
 	evalvec = NULL;
 	alvecp = NULL;
 	evalp = NULL;
-	(void) lex(&paraml);
+	(void) lex(&fparaml);
 	if (seterr)
 	    stderror(ERR_OLD);
-	alias(&paraml);
-	t = syntax(paraml.next, &paraml, 0);
+	alias(&fparaml);
+	t = syntax(fparaml.next, &fparaml, 0);
 	if (seterr)
 	    stderror(ERR_OLD);
 	if (t)
 	    t->t_dflg |= F_NOFORK;
-	(void) signal(SIGTSTP, SIG_IGN);
-	(void) signal(SIGTTIN, SIG_IGN);
-	(void) signal(SIGTTOU, SIG_IGN);
+	(void)signal(SIGTSTP, SIG_IGN);
+	(void)signal(SIGTTIN, SIG_IGN);
+	(void)signal(SIGTTOU, SIG_IGN);
 	execute(t, -1, NULL, NULL);
 	exitstat();
     }
-    xfree((ptr_t) cp);
-    (void) close(pvec[1]);
+    free(cp);
+    (void)close(pvec[1]);
     c = 0;
     ip = NULL;
     do {
-	int     cnt = 0;
+	int cnt;
+
+	cnt = 0;
 
 	for (;;) {
 	    if (icnt == 0) {
-		int     i;
+		int i;
 
 		ip = ibuf;
 		do
-		    icnt = read(pvec[0], tibuf, BUFSIZ);
+		    icnt = read(pvec[0], tibuf, BUFSIZE);
 		while (icnt == -1 && errno == EINTR);
 		if (icnt <= 0) {
 		    c = -1;
@@ -749,7 +758,7 @@ backeval(Char *cp, bool literal)
 	    pword();
 	hadnl = 0;
     } while (c >= 0);
-    (void) close(pvec[0]);
+    (void)close(pvec[0]);
     pwait();
     prestjob();
 }
@@ -759,7 +768,7 @@ psave(int c)
 {
     if (--pnleft <= 0)
 	stderror(ERR_WTOOLONG);
-    *pargcp++ = c;
+    *pargcp++ = (Char)c;
 }
 
 static void
@@ -768,8 +777,7 @@ pword(void)
     psave(0);
     if (pargc == pargsiz - 1) {
 	pargsiz += GLOBSPACE;
-	pargv = (Char **) xrealloc((ptr_t) pargv,
-				   (size_t) pargsiz * sizeof(Char *));
+	pargv = xrealloc(pargv, (size_t)pargsiz * sizeof(Char *));
     }
     pargv[pargc++] = Strsave(pargs);
     pargv[pargc] = NULL;
@@ -777,18 +785,21 @@ pword(void)
     pnleft = MAXPATHLEN - 4;
 }
 
-int
+int 
 Gmatch(Char *string, Char *pattern)
 {
     Char **blk, **p;
-    int	   gpol = 1, gres = 0;
+    int gpol, gres;
+
+    gpol = 1;
+    gres = 0;
 
     if (*pattern == '^') {
 	gpol = 0;
 	pattern++;
     }
 
-    blk = (Char **) xmalloc(GLOBSPACE * sizeof(Char *));
+    blk = xmalloc(GLOBSPACE * sizeof(Char *));
     blk[0] = Strsave(pattern);
     blk[1] = NULL;
 
@@ -799,60 +810,77 @@ Gmatch(Char *string, Char *pattern)
 
     blkfree(blk);
     return(gres == gpol);
-}
+} 
 
 static int
-pmatch(Char *string, Char *pattern)
+pmatch(const Char *name, const Char *pat)
 {
-    Char stringc, patternc;
-    int     match, negate_range;
-    Char    rangec;
+    int match, negate_range;
+    Char patc, namec, c;
+    const Char *nameNext, *nameStart, *nameEnd, *patNext;
 
-    for (;; ++string) {
-	stringc = *string & TRIM;
-	patternc = *pattern++;
-	switch (patternc) {
+    nameNext = nameStart = name;
+    patNext = pat;
+    nameEnd = NULL;
+
+    for (;;) {
+	namec = *name & TRIM;
+	if (namec == 0)
+	    nameEnd = name;
+	patc = *pat;
+	switch (patc) {
 	case 0:
-	    return (stringc == 0);
-	case '?':
-	    if (stringc == 0)
-		return (0);
+	    if (namec == 0)
+		return 1;
 	    break;
+	case '?':
+	    if (namec == 0)
+		break;
+	    pat++;
+	    name++;
+	    continue;
 	case '*':
-	    if (!*pattern)
-		return (1);
-	    while (*string)
-		if (Gmatch(string++, pattern))
-		    return (1);
-	    return (0);
+	    while ((pat[1] & TRIM) == '*')
+		pat++;
+	    patNext = pat;
+	    nameNext = name + 1;
+	    pat++;
+	    continue;
 	case '[':
 	    match = 0;
-	    if ((negate_range = (*pattern == '^')) != 0)
-		pattern++;
-	    while ((rangec = *pattern++) != '\0') {
-		if (rangec == ']')
-		    break;
-		if (match)
-		    continue;
-		if (rangec == '-' && *(pattern-2) != '[' && *pattern  != ']') {
-		    match = (stringc <= (*pattern & TRIM) &&
-			      (*(pattern-2) & TRIM) <= stringc);
-		    pattern++;
-		}
-		else
-		    match = (stringc == (rangec & TRIM));
+	    if (namec == 0)
+		break;
+	    pat++;
+	    name++;
+	    if ((negate_range = (*pat == '^')) != 0)
+		pat++;
+	    while ((c = *pat++) != ']') {
+		c &= TRIM;
+		if (*pat == '-') {
+		    if (c <= namec && namec <= (pat[1] & TRIM))
+			match = 1;
+		    pat += 2;
+		} else if (c == namec)
+		    match = 1;
+		else if (c == 0)
+		    stderror(ERR_NAME | ERR_MISSING, ']');
 	    }
-	    if (rangec == 0)
-		stderror(ERR_NAME | ERR_MISSING, ']');
 	    if (match == negate_range)
-		return (0);
-	    break;
+		break;
+	    continue;
 	default:
-	    if ((patternc & TRIM) != stringc)
-		return (0);
-	    break;
-
+	    if ((patc & TRIM) != namec)
+		break;
+	    pat++;
+	    name++;
+	    continue;
 	}
+	if (nameNext != nameStart && (nameEnd == NULL || nameNext <= nameEnd)) {
+	    pat = patNext;
+	    name = nameNext;
+	    continue;
+	}
+	return 0;
     }
 }
 
@@ -860,7 +888,7 @@ void
 Gcat(Char *s1, Char *s2)
 {
     Char *p, *q;
-    int     n;
+    ptrdiff_t n;
 
     for (p = s1; *p++;)
 	continue;
@@ -869,11 +897,10 @@ Gcat(Char *s1, Char *s2)
     n = (p - s1) + (q - s2) - 1;
     if (++gargc >= gargsiz) {
 	gargsiz += GLOBSPACE;
-	gargv = (Char **) xrealloc((ptr_t) gargv,
-				   (size_t) gargsiz * sizeof(Char *));
+	gargv = xrealloc(gargv, (size_t)gargsiz * sizeof(Char *));
     }
     gargv[gargc] = 0;
-    p = gargv[gargc - 1] = (Char *) xmalloc((size_t) n * sizeof(Char));
+    p = gargv[gargc - 1] = xmalloc((size_t)n * sizeof(Char));
     for (q = s1; (*p++ = *q++) != '\0';)
 	continue;
     for (p--, q = s2; (*p++ = *q++) != '\0';)
@@ -882,27 +909,29 @@ Gcat(Char *s1, Char *s2)
 
 #ifdef FILEC
 int
-sortscmp(ptr_t a, ptr_t b)
+sortscmp(const void *va, const void *vb)
 {
 #if defined(NLS) && !defined(NOSTRCOLL)
-    char    buf[2048];
+    char buf[2048];
 #endif
+    const Char * const *a = va;
+    const Char * const *b = vb;
 
     if (!a)			/* check for NULL */
 	return (b ? 1 : 0);
     if (!b)
-	return (-1);
+	return -1;
 
-    if (!*(Char **)a)			/* check for NULL */
-	return (*(Char **)b ? 1 : 0);
-    if (!*(Char **)b)
+    if (!*a)			/* check for NULL */
+	return *b ? 1 : 0;
+    if (!*b)
 	return (-1);
 
 #if defined(NLS) && !defined(NOSTRCOLL)
-    (void) strlcpy(buf, short2str(*(Char **)a), sizeof buf);
-    return ((int) strcoll(buf, short2str(*(Char **)b)));
+    (void)strcpy(buf, short2str(*a));
+    return (int)strcoll(buf, short2str(*b));
 #else
-    return ((int) Strcmp(*(Char **)a, *(Char **)b));
+    return (int)Strcmp(*a, *b);
 #endif
 }
 #endif /* FILEC */

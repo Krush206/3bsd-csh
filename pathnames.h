@@ -1,5 +1,4 @@
-/*	$OpenBSD: pathnames.h,v 1.3 2003/06/02 23:32:07 millert Exp $	*/
-/*	$NetBSD: pathnames.h,v 1.6 1995/03/21 09:03:13 cgd Exp $	*/
+/* $NetBSD: pathnames.h,v 1.8 2003/08/07 09:05:06 agc Exp $ */
 
 /*
  * Copyright (c) 1988, 1993
@@ -32,9 +31,14 @@
  *	@(#)pathnames.h	8.1 (Berkeley) 5/31/93
  */
 
-#define	_PATH_BIN		"/bin"
-#define	_PATH_DOTCSHRC		"/etc/csh.cshrc"
-#define	_PATH_DOTLOGIN		"/etc/csh.login"
-#define	_PATH_DOTLOGOUT		"/etc/csh.logout"
-#define	_PATH_LOGIN		"/usr/bin/login"
-#define	_PATH_USRBIN		"/usr/bin"
+#ifndef _PATHNAMES_H_
+#define _PATHNAMES_H_
+
+#define	_PATH_BIN		"@TERMUX_PREFIX@/bin"
+#define	_PATH_DOTCSHRC		"@TERMUX_PREFIX@/etc/csh.cshrc"
+#define	_PATH_DOTLOGIN		"@TERMUX_PREFIX@/etc/csh.login"
+#define	_PATH_DOTLOGOUT		"@TERMUX_PREFIX@/etc/csh.logout"
+#define	_PATH_LOGIN		"@TERMUX_PREFIX@/usr/bin/login"
+#define	_PATH_USRBIN		"@TERMUX_PREFIX@/usr/bin"
+
+#endif /* !_PATHNAMES_H_ */

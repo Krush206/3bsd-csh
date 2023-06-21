@@ -1,5 +1,4 @@
-/*	$OpenBSD: sem.c,v 1.17 2010/08/12 02:00:27 kevlo Exp $	*/
-/*	$NetBSD: sem.c,v 1.9 1995/09/27 00:38:50 jtc Exp $	*/
+/* $NetBSD: sem.c,v 1.32 2020/02/05 20:06:17 fox Exp $ */
 
 /*-
  * Copyright (c) 1980, 1991, 1993
@@ -30,43 +29,52 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/param.h>
+#include <sys/cdefs.h>
+#ifndef lint
+#if 0
+static char sccsid[] = "@(#)sem.c	8.1 (Berkeley) 5/31/93";
+#else
+__RCSID("$NetBSD: sem.c,v 1.32 2020/02/05 20:06:17 fox Exp $");
+#endif
+#endif /* not lint */
+
 #include <sys/ioctl.h>
+#include <sys/param.h>
 #include <sys/stat.h>
+
 #include <errno.h>
 #include <fcntl.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <stdarg.h>
 
 #include "csh.h"
-#include "proc.h"
 #include "extern.h"
+#include "proc.h"
 
-static void	 vffree(int);
-static Char	*splicepipe(struct command *t, Char *);
-static void	 doio(struct command *t, int *, int *);
-static void	 chkclob(char *);
+__dead static void vffree(int);
+static Char *splicepipe(struct command *t, Char *);
+static void doio(struct command *t, int *, int *);
+static void chkclob(char *);
 
 void
-execute(struct command *t, int wanttty, int *pipein, int *pipeout)
+execute(struct command *t, int wtty, int *pipein, int *pipeout)
 {
-    bool    forked = 0;
-    struct biltins *bifunc;
-    int     pid = 0;
-    int     pv[2];
-    sigset_t sigset;
-
-    static sigset_t csigset;
-
-    static sigset_t ocsigset;
-    static int onosigchld = 0;
-    static int nosigchld = 0;
+    static sigset_t csigset, ocsigset; 
+    static int nosigchld = 0, onosigchld = 0;
+    volatile int wanttty = wtty;
+    struct biltins * volatile bifunc;
+    int pv[2], pid;
+    sigset_t nsigset;
+    volatile int forked;
 
     UNREGISTER(forked);
     UNREGISTER(bifunc);
     UNREGISTER(wanttty);
+
+    forked = 0;
+    pid = 0;
 
     if (t == 0)
 	return;
@@ -74,17 +82,14 @@ execute(struct command *t, int wanttty, int *pipein, int *pipeout)
     if (t->t_dflg & F_AMPERSAND)
 	wanttty = 0;
     switch (t->t_dtyp) {
-
     case NODE_COMMAND:
 	if ((t->t_dcom[0][0] & (QUOTE | TRIM)) == QUOTE)
-	    (void) memmove(t->t_dcom[0], t->t_dcom[0] + 1,
-		(Strlen(t->t_dcom[0] + 1) + 1) * sizeof(Char));
+	    (void)Strcpy(t->t_dcom[0], t->t_dcom[0] + 1);
 	if ((t->t_dflg & F_REPEAT) == 0)
 	    Dfix(t);		/* $ " ' \ */
 	if (t->t_dcom[0] == 0)
 	    return;
-	/* fall into... */
-
+	/* FALLTHROUGH */
     case NODE_PAREN:
 	if (t->t_dflg & F_PIPEOUT)
 	    mypipe(pipeout);
@@ -93,10 +98,10 @@ execute(struct command *t, int wanttty, int *pipein, int *pipeout)
 	 * If noexec then this is all we do.
 	 */
 	if (t->t_dflg & F_READ) {
-	    (void) close(0);
+	    (void)close(0);
 	    heredoc(t->t_dlef);
 	    if (noexec)
-		(void) close(0);
+		(void)close(0);
 	}
 
 	set(STRstatus, Strsave(STR0));
@@ -108,9 +113,9 @@ execute(struct command *t, int wanttty, int *pipein, int *pipeout)
 	 * parsed.
 	 */
 	while (t->t_dtyp == NODE_COMMAND)
-	    if (eq(t->t_dcom[0], STRnice))
-		if (t->t_dcom[1])
-		    if (strchr("+-", t->t_dcom[1][0]))
+	    if (eq(t->t_dcom[0], STRnice)) {
+		if (t->t_dcom[1]) {
+		    if (strchr("+-", t->t_dcom[1][0])) {
 			if (t->t_dcom[2]) {
 			    setname("nice");
 			    t->t_nice =
@@ -120,28 +125,28 @@ execute(struct command *t, int wanttty, int *pipein, int *pipeout)
 			}
 			else
 			    break;
-		    else {
+		    } else {
 			t->t_nice = 4;
 			lshift(t->t_dcom, 1);
 			t->t_dflg |= F_NICE;
 		    }
-		else
+		} else
 		    break;
-	    else if (eq(t->t_dcom[0], STRnohup))
+	    } else if (eq(t->t_dcom[0], STRnohup)) {
 		if (t->t_dcom[1]) {
 		    t->t_dflg |= F_NOHUP;
 		    lshift(t->t_dcom, 1);
 		}
 		else
 		    break;
-	    else if (eq(t->t_dcom[0], STRtime))
+	    } else if (eq(t->t_dcom[0], STRtime)) {
 		if (t->t_dcom[1]) {
 		    t->t_dflg |= F_TIME;
 		    lshift(t->t_dcom, 1);
 		}
 		else
 		    break;
-	    else
+	    } else
 		break;
 
 	/* is it a command */
@@ -150,12 +155,11 @@ execute(struct command *t, int wanttty, int *pipein, int *pipeout)
 	     * Check if we have a builtin function and remember which one.
 	     */
 	    bifunc = isbfunc(t);
-	    if (noexec) {
+ 	    if (noexec && bifunc != NULL) {
 		/*
 		 * Continue for builtins that are part of the scripting language
 		 */
-		if (bifunc &&
-		    bifunc->bfunct != dobreak   && bifunc->bfunct != docontin &&
+		if (bifunc->bfunct != dobreak   && bifunc->bfunct != docontin &&
 		    bifunc->bfunct != doelse    && bifunc->bfunct != doend    &&
 		    bifunc->bfunct != doforeach && bifunc->bfunct != dogoto   &&
 		    bifunc->bfunct != doif      && bifunc->bfunct != dorepeat &&
@@ -200,15 +204,15 @@ execute(struct command *t, int wanttty, int *pipein, int *pipeout)
 		 * not die before we can set the process group
 		 */
 		if (wanttty >= 0 && !nosigchld) {
-		    sigemptyset(&sigset);
-		    sigaddset(&sigset, SIGCHLD);
-		    sigprocmask(SIG_BLOCK, &sigset, &csigset);
+		    sigemptyset(&nsigset);
+		    (void)sigaddset(&nsigset, SIGCHLD);
+		    (void)sigprocmask(SIG_BLOCK, &nsigset, &csigset);
 		    nosigchld = 1;
 		}
 
 		pid = pfork(t, wanttty);
 		if (pid == 0 && nosigchld) {
-		    sigprocmask(SIG_SETMASK, &csigset, NULL);
+		    (void)sigprocmask(SIG_SETMASK, &csigset, NULL);
 		    nosigchld = 0;
 		}
 		else if (pid != 0 && (t->t_dflg & F_AMPERSAND))
@@ -216,8 +220,8 @@ execute(struct command *t, int wanttty, int *pipein, int *pipeout)
 
 	    }
 	    else {
-		int     ochild, osetintr, ohaderr, odidfds;
-		int     oSHIN, oSHOUT, oSHERR, oOLDSTD, otpgrp;
+		int ochild, osetintr, ohaderr, odidfds;
+		int oSHIN, oSHOUT, oSHERR, oOLDSTD, otpgrp;
 		sigset_t osigset;
 
 		/*
@@ -229,15 +233,15 @@ execute(struct command *t, int wanttty, int *pipein, int *pipeout)
 		 * before it exec's.
 		 */
 		if (wanttty >= 0 && !nosigchld && !noexec) {
-		    sigemptyset(&sigset);
-		    sigaddset(&sigset, SIGCHLD);
-		    sigprocmask(SIG_BLOCK, &sigset, &csigset);
+		    sigemptyset(&nsigset);
+		    (void)sigaddset(&nsigset, SIGCHLD);
+		    (void)sigprocmask(SIG_BLOCK, &nsigset, &csigset);
 		    nosigchld = 1;
 		}
-		sigemptyset(&sigset);
-		sigaddset(&sigset, SIGCHLD);
-		sigaddset(&sigset, SIGINT);
-		sigprocmask(SIG_BLOCK, &sigset, &osigset);
+		sigemptyset(&nsigset);
+		(void)sigaddset(&nsigset, SIGCHLD);
+		(void)sigaddset(&nsigset, SIGINT);
+		(void)sigprocmask(SIG_BLOCK, &nsigset, &osigset);
 		ochild = child;
 		osetintr = setintr;
 		ohaderr = haderr;
@@ -255,7 +259,7 @@ execute(struct command *t, int wanttty, int *pipein, int *pipeout)
 		pid = vfork();
 
 		if (pid < 0) {
-		    sigprocmask(SIG_SETMASK, &osigset, NULL);
+		    (void)sigprocmask(SIG_SETMASK, &osigset, NULL);
 		    stderror(ERR_NOPROC);
 		}
 		forked++;
@@ -272,25 +276,25 @@ execute(struct command *t, int wanttty, int *pipein, int *pipeout)
 		    csigset = ocsigset;
 		    nosigchld = onosigchld;
 
-		    xfree((ptr_t) Vsav);
+		    free(Vsav);
 		    Vsav = 0;
-		    xfree((ptr_t) Vdp);
+		    free(Vdp);
 		    Vdp = 0;
-		    xfree((ptr_t) Vexpath);
+		    free(Vexpath);
 		    Vexpath = 0;
-		    blkfree((Char **) Vt);
+		    blkfree((Char **)Vt);
 		    Vt = 0;
 		    /* this is from pfork() */
 		    palloc(pid, t);
-		    sigprocmask(SIG_SETMASK, &osigset, NULL);
+		    (void)sigprocmask(SIG_SETMASK, &osigset, NULL);
 		}
 		else {		/* child */
 		    /* this is from pfork() */
-		    int     pgrp;
-		    bool    ignint = 0;
+		    int pgrp;
+		    int ignint = 0;
 
 		    if (nosigchld) {
-			sigprocmask(SIG_SETMASK, &csigset, NULL);
+		        (void)sigprocmask(SIG_SETMASK, &csigset, NULL);
 			nosigchld = 0;
 		    }
 
@@ -304,33 +308,33 @@ execute(struct command *t, int wanttty, int *pipein, int *pipeout)
 		    if (setintr) {
 			setintr = 0;
 			if (ignint) {
-			    (void) signal(SIGINT, SIG_IGN);
-			    (void) signal(SIGQUIT, SIG_IGN);
+			    (void)signal(SIGINT, SIG_IGN);
+			    (void)signal(SIGQUIT, SIG_IGN);
 			}
 			else {
-			    (void) signal(SIGINT, vffree);
-			    (void) signal(SIGQUIT, SIG_DFL);
+			    (void)signal(SIGINT, vffree);
+			    (void)signal(SIGQUIT, SIG_DFL);
 			}
 
 			if (wanttty >= 0) {
-			    (void) signal(SIGTSTP, SIG_DFL);
-			    (void) signal(SIGTTIN, SIG_DFL);
-			    (void) signal(SIGTTOU, SIG_DFL);
+			    (void)signal(SIGTSTP, SIG_DFL);
+			    (void)signal(SIGTTIN, SIG_DFL);
+			    (void)signal(SIGTTOU, SIG_DFL);
 			}
 
-			(void) signal(SIGTERM, parterm);
+			(void)signal(SIGTERM, parterm);
 		    }
 		    else if (tpgrp == -1 &&
 			     (t->t_dflg & F_NOINTERRUPT)) {
-			(void) signal(SIGINT, SIG_IGN);
-			(void) signal(SIGQUIT, SIG_IGN);
+			(void)signal(SIGINT, SIG_IGN);
+			(void)signal(SIGQUIT, SIG_IGN);
 		    }
 
 		    pgetty(wanttty, pgrp);
 		    if (t->t_dflg & F_NOHUP)
-			(void) signal(SIGHUP, SIG_IGN);
+			(void)signal(SIGHUP, SIG_IGN);
 		    if (t->t_dflg & F_NICE)
-			(void) setpriority(PRIO_PROCESS, 0, t->t_nice);
+			(void)setpriority(PRIO_PROCESS, 0, t->t_nice);
 		}
 
 	    }
@@ -343,12 +347,12 @@ execute(struct command *t, int wanttty, int *pipein, int *pipeout)
 	     * express our intentions.
 	     */
 	    if (didfds == 0 && t->t_dflg & F_PIPEIN) {
-		(void) close(pipein[0]);
-		(void) close(pipein[1]);
+		(void)close(pipein[0]);
+		(void)close(pipein[1]);
 	    }
 	    if ((t->t_dflg & F_PIPEOUT) == 0) {
 		if (nosigchld) {
-		    sigprocmask(SIG_SETMASK, &csigset, NULL);
+		    (void)sigprocmask(SIG_SETMASK, &csigset, NULL);
 		    nosigchld = 0;
 		}
 		if ((t->t_dflg & F_AMPERSAND) == 0)
@@ -358,8 +362,8 @@ execute(struct command *t, int wanttty, int *pipein, int *pipeout)
 	}
 	doio(t, pipein, pipeout);
 	if (t->t_dflg & F_PIPEOUT) {
-	    (void) close(pipeout[0]);
-	    (void) close(pipeout[1]);
+	    (void)close(pipeout[0]);
+	    (void)close(pipeout[1]);
 	}
 	/*
 	 * Perform a builtin function. If we are not forked, arrange for
@@ -371,24 +375,23 @@ execute(struct command *t, int wanttty, int *pipein, int *pipeout)
 		exitstat();
 	    break;
 	}
-	if (t->t_dtyp != NODE_PAREN) {
+	if (t->t_dtyp != NODE_PAREN)
 	    doexec(NULL, t);
-	    /* NOTREACHED */
-	}
 	/*
 	 * For () commands must put new 0,1,2 in FSH* and recurse
 	 */
-	OLDSTD = dcopy(0, FOLDSTD);
-	SHOUT = dcopy(1, FSHOUT);
-	SHERR = dcopy(2, FSHERR);
+	(void) ioctl(OLDSTD = dcopy(0, FOLDSTD), FIOCLEX, NULL);
+	(void) ioctl(SHOUT = dcopy(1, FSHOUT), FIOCLEX, NULL);
+	(void) ioctl(SHERR = dcopy(2, FSHERR), FIOCLEX, NULL);
 	(void) close(SHIN);
+
 	SHIN = -1;
 	didfds = 0;
 	wanttty = -1;
 	t->t_dspr->t_dflg |= t->t_dflg & F_NOINTERRUPT;
 	execute(t->t_dspr, wanttty, NULL, NULL);
 	exitstat();
-
+	/* NOTREACHED */
     case NODE_PIPE:
 	t->t_dcar->t_dflg |= F_PIPEOUT |
 	    (t->t_dflg & (F_PIPEIN | F_AMPERSAND | F_STDERR | F_NOINTERRUPT));
@@ -399,7 +402,6 @@ execute(struct command *t, int wanttty, int *pipein, int *pipeout)
 	    wanttty = 0;	/* got tty already */
 	execute(t->t_dcdr, wanttty, pv, pipeout);
 	break;
-
     case NODE_LIST:
 	if (t->t_dcar) {
 	    t->t_dcar->t_dflg |= t->t_dflg & F_NOINTERRUPT;
@@ -417,7 +419,6 @@ execute(struct command *t, int wanttty, int *pipein, int *pipeout)
 	    execute(t->t_dcdr, wanttty, NULL, NULL);
 	}
 	break;
-
     case NODE_OR:
     case NODE_AND:
 	if (t->t_dcar) {
@@ -436,7 +437,7 @@ execute(struct command *t, int wanttty, int *pipein, int *pipeout)
     }
     /*
      * Fall through for all breaks from switch
-     *
+     * 
      * If there will be no more executions of this command, flush all file
      * descriptors. Places that turn on the F_REPEAT bit are responsible for
      * doing donefds after the last re-execution
@@ -448,7 +449,18 @@ execute(struct command *t, int wanttty, int *pipein, int *pipeout)
 static void
 vffree(int i)
 {
+    Char **v;
+
+    if ((v = gargv) != NULL) {
+	gargv = 0;
+	free(v);
+    }
+    if ((v = pargv) != NULL) {
+	pargv = 0;
+	free(v);
+    }
     _exit(i);
+    /* NOTREACHED */
 }
 
 /*
@@ -463,11 +475,11 @@ vffree(int i)
  *
  * I don't know what is best to do. I think that Ambiguous is better
  * than restructuring the command vector, because the user can get
- * unexpected results. In any case, the command vector restructuring
+ * unexpected results. In any case, the command vector restructuring 
  * code is present and the user can choose it by setting noambiguous
  */
 static Char *
-splicepipe(struct command *t, Char *cp) /* word after < or > */
+splicepipe(struct command *t, Char *cp /* word after < or > */)
 {
     Char *blk[2];
 
@@ -482,23 +494,24 @@ splicepipe(struct command *t, Char *cp) /* word after < or > */
 	    pv = globall(blk);
 	    if (pv == NULL) {
 		setname(vis_str(blk[0]));
-		xfree((ptr_t) blk[0]);
+		free(blk[0]);
 		stderror(ERR_NAME | ERR_NOMATCH);
+		/* NOTREACHED */
 	    }
 	    gargv = NULL;
 	    if (pv[1] != NULL) { /* we need to fix the command vector */
 		Char **av = blkspl(t->t_dcom, &pv[1]);
-		xfree((ptr_t) t->t_dcom);
+		free(t->t_dcom);
 		t->t_dcom = av;
 	    }
-	    xfree((ptr_t) blk[0]);
+	    free(blk[0]);
 	    blk[0] = pv[0];
-	    xfree((ptr_t) pv);
+	    free(pv);
 	}
     }
     else {
 	blk[0] = globone(blk[1] = Dfix1(cp), G_ERROR);
-	xfree((ptr_t) blk[1]);
+	free(blk[1]);
     }
     return(blk[0]);
 }
@@ -510,91 +523,97 @@ splicepipe(struct command *t, Char *cp) /* word after < or > */
 static void
 doio(struct command *t, int *pipein, int *pipeout)
 {
-    int fd;
     Char *cp;
-    int flags = t->t_dflg;
+    int fd, flags;
 
+    flags = t->t_dflg;
     if (didfds || (flags & F_REPEAT))
 	return;
     if ((flags & F_READ) == 0) {/* F_READ already done */
 	if (t->t_dlef) {
-	    char    tmp[MAXPATHLEN];
+	    char tmp[MAXPATHLEN+1];
 
 	    /*
 	     * so < /dev/std{in,out,err} work
 	     */
-	    (void) dcopy(SHIN, 0);
-	    (void) dcopy(SHOUT, 1);
-	    (void) dcopy(SHERR, 2);
+	    (void)dcopy(SHIN, 0);
+	    (void)dcopy(SHOUT, 1);
+	    (void)dcopy(SHERR, 2);
 	    cp = splicepipe(t, t->t_dlef);
-	    strlcpy(tmp, short2str(cp), sizeof tmp);
-	    xfree((ptr_t) cp);
-	    if ((fd = open(tmp, O_RDONLY)) < 0)
+	    (void)strlcpy(tmp, short2str(cp), sizeof(tmp));
+	    free(cp);
+	    if ((fd = open(tmp, O_RDONLY)) < 0) {
 		stderror(ERR_SYSTEM, tmp, strerror(errno));
-	    (void) dmove(fd, 0);
+		/* NOTREACHED */
+	    }
+	    (void)dmove(fd, 0);
 	}
 	else if (flags & F_PIPEIN) {
-	    (void) close(0);
-	    (void) dup(pipein[0]);
-	    (void) close(pipein[0]);
-	    (void) close(pipein[1]);
+	    (void)close(0);
+	    (void)dup(pipein[0]);
+	    (void)close(pipein[0]);
+	    (void)close(pipein[1]);
 	}
 	else if ((flags & F_NOINTERRUPT) && tpgrp == -1) {
-	    (void) close(0);
-	    (void) open(_PATH_DEVNULL, O_RDONLY);
+	    (void)close(0);
+	    (void)open(_PATH_DEVNULL, O_RDONLY);
 	}
 	else {
-	    (void) close(0);
-	    (void) dup(OLDSTD);
-	    (void) ioctl(STDIN_FILENO, FIONCLEX, NULL);
+	    (void)close(0);
+	    (void)dup(OLDSTD);
+	    (void)ioctl(0, FIONCLEX, NULL);
 	}
     }
     if (t->t_drit) {
-	char    tmp[MAXPATHLEN];
+	char    tmp[MAXPATHLEN+1];
 
 	cp = splicepipe(t, t->t_drit);
-	strlcpy(tmp, short2str(cp), sizeof tmp);
-	xfree((ptr_t) cp);
+	(void)strlcpy(tmp, short2str(cp), sizeof(tmp));
+	free(cp);
 	/*
 	 * so > /dev/std{out,err} work
 	 */
-	(void) dcopy(SHOUT, 1);
-	(void) dcopy(SHERR, 2);
+	(void)dcopy(SHOUT, 1);
+	(void)dcopy(SHERR, 2);
 	if ((flags & F_APPEND) &&
 #ifdef O_APPEND
 	    (fd = open(tmp, O_WRONLY | O_APPEND)) >= 0);
 #else
 	    (fd = open(tmp, O_WRONLY)) >= 0)
-	    (void) lseek(STDOUT_FILENO, (off_t) 0, SEEK_END);
+	    (void)lseek(1, (off_t) 0, SEEK_END);
 #endif
 	else {
 	    if (!(flags & F_OVERWRITE) && adrof(STRnoclobber)) {
-		if (flags & F_APPEND)
+		if (flags & F_APPEND) {
 		    stderror(ERR_SYSTEM, tmp, strerror(errno));
+		    /* NOTREACHED */
+		}
 		chkclob(tmp);
 	    }
-	    if ((fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0666)) < 0)
+	    if ((fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0666)) < 0) {
 		stderror(ERR_SYSTEM, tmp, strerror(errno));
+		/* NOTREACHED */
+	    }
 	}
-	(void) dmove(fd, 1);
+	(void)dmove(fd, 1);
     }
     else if (flags & F_PIPEOUT) {
-	(void) close(1);
-	(void) dup(pipeout[1]);
+	(void)close(1);
+	(void)dup(pipeout[1]);
     }
     else {
-	(void) close(1);
-	(void) dup(SHOUT);
-	(void) ioctl(STDOUT_FILENO, FIONCLEX, NULL);
+	(void)close(1);
+	(void)dup(SHOUT);
+	(void)ioctl(1, FIONCLEX, NULL);
     }
 
-    (void) close(2);
+    (void)close(2);
     if (flags & F_STDERR) {
-	(void) dup(1);
+	(void)dup(1);
     }
     else {
-	(void) dup(SHERR);
-	(void) ioctl(STDERR_FILENO, FIONCLEX, NULL);
+	(void)dup(SHERR);
+	(void)ioctl(2, FIONCLEX, NULL);
     }
     didfds = 1;
 }
@@ -602,7 +621,6 @@ doio(struct command *t, int *pipein, int *pipeout)
 void
 mypipe(int *pv)
 {
-
     if (pipe(pv) < 0)
 	goto oops;
     pv[0] = dmove(pv[0], -1);
@@ -611,6 +629,7 @@ mypipe(int *pv)
 	return;
 oops:
     stderror(ERR_PIPE);
+    /* NOTREACHED */
 }
 
 static void
@@ -623,4 +642,5 @@ chkclob(char *cp)
     if (S_ISCHR(stb.st_mode))
 	return;
     stderror(ERR_EXISTS, cp);
+    /* NOTREACHED */
 }

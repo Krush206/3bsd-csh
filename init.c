@@ -1,5 +1,4 @@
-/*	$OpenBSD: init.c,v 1.7 2009/10/27 23:59:21 deraadt Exp $	*/
-/*	$NetBSD: init.c,v 1.6 1995/03/21 09:03:05 cgd Exp $	*/
+/* $NetBSD: init.c,v 1.12 2021/09/11 20:55:03 christos Exp $ */
 
 /*-
  * Copyright (c) 1980, 1991, 1993
@@ -30,6 +29,15 @@
  * SUCH DAMAGE.
  */
 
+#include <sys/cdefs.h>
+#ifndef lint
+#if 0
+static char sccsid[] = "@(#)init.c	8.1 (Berkeley) 5/31/93";
+#else
+__RCSID("$NetBSD: init.c,v 1.12 2021/09/11 20:55:03 christos Exp $");
+#endif
+#endif /* not lint */
+
 #include <stdarg.h>
 
 #include "csh.h"
@@ -41,7 +49,6 @@ struct biltins bfunc[] =
 {
     { "@", 		dolet, 		0, INF	},
     { "alias", 		doalias, 	0, INF	},
-    { "alloc", 		showall, 	0, 1	},
     { "bg", 		dobg, 		0, INF	},
     { "break", 		dobreak, 	0, 0	},
     { "breaksw", 	doswbrk, 	0, 0	},
@@ -66,7 +73,7 @@ struct biltins bfunc[] =
     { "hashstat", 	hashstat, 	0, 0	},
     { "history", 	dohist, 	0, 2	},
     { "if", 		doif, 		1, INF	},
-    { "jobs", 		dojobs, 	0, 1	},
+    { "jobs", 		dojobs, 	0, 2	},
     { "kill", 		dokill, 	1, INF	},
     { "limit", 		dolimit, 	0, 3	},
     { "linedit", 	doecho, 	0, INF	},
@@ -77,6 +84,7 @@ struct biltins bfunc[] =
     { "notify", 	donotify, 	0, INF	},
     { "onintr", 	doonintr, 	0, 2	},
     { "popd", 		dopopd, 	0, INF	},
+    { "printf",		doprintf,	1, INF	},
     { "pushd", 		dopushd, 	0, INF	},
     { "rehash", 	dohash, 	0, 0	},
     { "repeat", 	dorepeat, 	2, INF	},
@@ -98,7 +106,7 @@ struct biltins bfunc[] =
     { "which",		dowhich, 	1, INF	},
     { "while", 		dowhile, 	1, INF	}
 };
-int     nbfunc = sizeof bfunc / sizeof *bfunc;
+int nbfunc = sizeof(bfunc) / sizeof(*bfunc);
 
 struct srch srchn[] =
 {
@@ -120,5 +128,4 @@ struct srch srchn[] =
     { "switch", 	T_SWITCH	},
     { "while", 		T_WHILE		}
 };
-int     nsrchn = sizeof srchn / sizeof *srchn;
-
+int nsrchn = sizeof(srchn) / sizeof(*srchn);

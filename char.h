@@ -1,5 +1,4 @@
-/*	$OpenBSD: char.h,v 1.4 2003/06/02 23:32:06 millert Exp $	*/
-/*	$NetBSD: char.h,v 1.6 1995/03/21 09:02:29 cgd Exp $	*/
+/* $NetBSD: char.h,v 1.9 2012/01/19 02:42:53 christos Exp $ */
 
 /*-
  * Copyright (c) 1980, 1991, 1993
@@ -32,6 +31,9 @@
  *	@(#)char.h	8.1 (Berkeley) 5/31/93
  */
 
+#ifndef _CHAR_H_
+#define _CHAR_H_
+
 #include <ctype.h>
 
 extern unsigned short _cmap[];
@@ -56,6 +58,7 @@ extern unsigned char _cmap_lower[], _cmap_upper[];
 #define	_XD 	0x1000		/* 0-9, a-f, A-F */
 #define	_CMD	0x2000		/* lex end of command chars, ;&(|` */
 #define _CTR	0x4000		/* control */
+#define _PUN	0x8000		/* punctuation */
 
 #define cmap(c, bits)	\
 	(((c) & QUOTE) ? 0 : (_cmap[(unsigned char)(c)] & (bits)))
@@ -67,7 +70,7 @@ extern unsigned char _cmap_lower[], _cmap_upper[];
 #define letter(c)	(((c) & QUOTE) ? 0 : \
 			 (isalpha((unsigned char) (c)) || (c) == '_'))
 #define alnum(c)	(((c) & QUOTE) ? 0 : \
-			 (isalnum((unsigned char) (c)) || (c) == '_'))
+		         (isalnum((unsigned char) (c)) || (c) == '_'))
 #ifdef NLS
 #define Isspace(c)	(((c) & QUOTE) ? 0 : isspace((unsigned char) (c)))
 #define Isdigit(c)	(((c) & QUOTE) ? 0 : isdigit((unsigned char) (c)))
@@ -86,10 +89,12 @@ extern unsigned char _cmap_lower[], _cmap_upper[];
 #define Isalpha(c)	(cmap(c,_LET) && !(((c) & META) && AsciiOnly))
 #define Islower(c)	(cmap(c,_LOW) && !(((c) & META) && AsciiOnly))
 #define Isupper(c)	(cmap(c, _UP) && !(((c) & META) && AsciiOnly))
-#define Tolower(c)  (_cmap_lower[(unsigned char)(c)])
-#define Toupper(c)  (_cmap_upper[(unsigned char)(c)])
+#define Tolower(c)	(_cmap_lower[(unsigned char)(c)])
+#define Toupper(c)	(_cmap_upper[(unsigned char)(c)])
 #define Isxdigit(c)	cmap(c, _XD)
 #define Isalnum(c)	(cmap(c, _DIG|_LET) && !(((c) & META) && AsciiOnly))
-#define Iscntrl(c)  (cmap(c,_CTR) && !(((c) & META) && AsciiOnly))
-#define Isprint(c)  (!cmap(c,_CTR) && !(((c) & META) && AsciiOnly))
+#define Iscntrl(c)	(cmap(c,_CTR) && !(((c) & META) && AsciiOnly))
+#define Isprint(c)	(!cmap(c,_CTR) && !(((c) & META) && AsciiOnly))
 #endif
+
+#endif /* !_CHAR_H_ */
