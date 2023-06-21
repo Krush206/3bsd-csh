@@ -42,7 +42,8 @@ all:
 	${CC} -o ${PROG} ${CFLAGS} ${SRCS} -lbsd -ledit -landroid-glob
 
 install:
-	install csh -Dm755 ${PREFIX}/bin/${PROG}
+	install -Dm755 ${PROG} ${PREFIX}/bin/${PROG}
+	install -Dm600 ${PROG}.1 ${PREFIX}/share/man/man1/${PROG}.1
 
 errnum.h: err.c
 	rm -f $@
