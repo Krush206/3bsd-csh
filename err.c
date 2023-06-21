@@ -1,5 +1,4 @@
-/*	$OpenBSD: error.c,v 1.10 2009/11/11 16:15:06 deraadt Exp $	*/
-/*	$NetBSD: err.c,v 1.6 1995/03/21 09:02:47 cgd Exp $	*/
+/* $NetBSD: err.c,v 1.25 2022/04/08 10:17:52 andvar Exp $ */
 
 /*-
  * Copyright (c) 1980, 1991, 1993
@@ -30,22 +29,31 @@
  * SUCH DAMAGE.
  */
 
+#include <bsd/sys/cdefs.h>
+#ifndef lint
+#if 0
+static char sccsid[] = "@(#)err.c	8.1 (Berkeley) 5/31/93";
+#else
+__RCSID("$NetBSD: err.c,v 1.25 2022/04/08 10:17:52 andvar Exp $");
+#endif
+#endif /* not lint */
+
 #include <sys/types.h>
+
+#include <stdarg.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <stdarg.h>
 
 #include "csh.h"
 #include "extern.h"
 
-char   *seterr = NULL;	/* Holds last error if there was one */
+char *seterr = NULL;	/* Holds last error if there was one */
 
-#define ERR_FLAGS	0xf0000000
 #define ERR_NAME	0x10000000
 #define ERR_SILENT	0x20000000
 #define ERR_OLD		0x40000000
 
-static char *errorlist[] =
+static const char *errorlist[] =
 {
 #define ERR_SYNTAX	0
     "Syntax Error",
@@ -162,7 +170,7 @@ static char *errorlist[] =
 #define ERR_STRING	56
     "%s",
 #define ERR_JOBS	57
-    "usage: jobs [-l]",
+    "usage: jobs [ -lZ ]",
 #define ERR_JOBARGS	58
     "Arguments should be jobs or process id's",
 #define ERR_JOBCUR	59
@@ -186,7 +194,7 @@ static char *errorlist[] =
 #define ERR_BADDIR	68
     "Bad directory",
 #define ERR_DIRUS	69
-    "usage: %s [-lnv]%s",
+    "usage: %s [-lvn]%s",
 #define ERR_HFLAG	70
     "No operand for -h flag",
 #define ERR_NOTLOGIN	71
@@ -204,7 +212,7 @@ static char *errorlist[] =
 #define ERR_NOHOME	77
     "No $home variable set",
 #define ERR_HISTUS	78
-    "usage: history [-hr] [n]",
+    "usage: history [-rh] [# number of events]",
 #define ERR_SPDOLLT	79
     "$, ! or < not allowed with $# or $?",
 #define ERR_NEWLINE	80
@@ -261,7 +269,7 @@ static char *errorlist[] =
     "Alias loop",
 #define ERR_HISTLOOP	106
     "!# History loop",
-#define ERR_ARCH	107
+#define ERR_ARCH        107
     "%s: %s. Wrong Architecture",
 #define ERR_FILEINQ	108
     "Malformed file inquiry",
@@ -280,13 +288,13 @@ void
 seterror(int id, ...)
 {
     if (seterr == 0) {
-	char    berr[BUFSIZ];
+	char berr[BUFSIZE];
 	va_list va;
 
 	va_start(va, id);
-	if (id < 0 || id >= sizeof(errorlist) / sizeof(errorlist[0]))
+	if (id < 0 || id >= (int)(sizeof(errorlist) / sizeof(errorlist[0])) - 1)
 	    id = ERR_INVALID;
-	vsnprintf(berr, sizeof(berr), errorlist[id], va);
+	(void)vsnprintf(berr, sizeof(berr), errorlist[id], va);
 	va_end(va);
 
 	seterr = strsave(berr);
@@ -299,7 +307,7 @@ seterror(int id, ...)
  * Special ids:
  *	ERR_SILENT: Print nothing.
  *	ERR_OLD: Print the previously set error if one was there.
- *		 otherwise return.
+ *	         otherwise return.
  *	ERR_NAME: If this bit is set, print the name of the function
  *		  in bname
  *
@@ -316,38 +324,39 @@ stderror(int id, ...)
 {
     va_list va;
     Char **v;
-    int     flags = id & ERR_FLAGS;
+    int flags;
 
+    flags = id & ERR_FLAGS;
     id &= ~ERR_FLAGS;
 
     if ((flags & ERR_OLD) && seterr == NULL)
-	return;
+	abort();
 
-    if (id < 0 || id >= sizeof(errorlist) / sizeof(errorlist[0]))
+    if (id < 0 || id > (int)(sizeof(errorlist) / sizeof(errorlist[0])))
 	id = ERR_INVALID;
 
-    (void) fflush(cshout);
-    (void) fflush(csherr);
+    (void)fflush(cshout);
+    (void)fflush(csherr);
     haderr = 1;			/* Now to diagnostic output */
     timflg = 0;			/* This isn't otherwise reset */
 
 
     if (!(flags & ERR_SILENT)) {
 	if (flags & ERR_NAME)
-	    (void) fprintf(csherr, "%s: ", bname);
+	    (void)fprintf(csherr, "%s: ", bname);
 	if ((flags & ERR_OLD))
 	    /* Old error. */
-	    (void) fprintf(csherr, "%s.\n", seterr);
+	    (void)fprintf(csherr, "%s.\n", seterr);
 	else {
 	    va_start(va, id);
-	    (void) vfprintf(csherr, errorlist[id], va);
+	    (void)vfprintf(csherr, errorlist[id], va);
 	    va_end(va);
-	    (void) fprintf(csherr, ".\n");
+	    (void)fprintf(csherr, ".\n");
 	}
     }
 
     if (seterr) {
-	xfree((ptr_t) seterr);
+	free(seterr);
 	seterr = NULL;
     }
 
@@ -356,13 +365,13 @@ stderror(int id, ...)
     if ((v = gargv) != NULL)
 	gargv = 0, blkfree(v);
 
-    (void) fflush(cshout);
-    (void) fflush(csherr);
+    (void)fflush(cshout);
+    (void)fflush(csherr);
     didfds = 0;			/* Forget about 0,1,2 */
     /*
      * Go away if -e or we are a child shell
      */
-    if (!exitset || exiterr || child)
+    if (exiterr || child)
 	xexit(1);
 
     /*
@@ -373,6 +382,6 @@ stderror(int id, ...)
 
     set(STRstatus, Strsave(STR1));
     if (tpgrp > 0)
-	(void) tcsetpgrp(FSHTTY, tpgrp);
+	(void)tcsetpgrp(FSHTTY, tpgrp);
     reset();			/* Unwind */
 }

@@ -1,5 +1,4 @@
-/*	$OpenBSD: str.c,v 1.15 2009/10/27 23:59:21 deraadt Exp $	*/
-/*	$NetBSD: str.c,v 1.6 1995/03/21 09:03:24 cgd Exp $	*/
+/* $NetBSD: str.c,v 1.16 2019/01/05 16:54:00 christos Exp $ */
 
 /*-
  * Copyright (c) 1991, 1993
@@ -30,7 +29,18 @@
  * SUCH DAMAGE.
  */
 
-#define MALLOC_INCR	128
+#define __UNCONST(a)	((void *)(unsigned long)(const void *)(a))
+
+#include <bsd/sys/cdefs.h>
+#ifndef lint
+#if 0
+static char sccsid[] = "@(#)str.c	8.1 (Berkeley) 5/31/93";
+#else
+__RCSID("$NetBSD: str.c,v 1.16 2019/01/05 16:54:00 christos Exp $");
+#endif
+#endif /* not lint */
+
+#define MALLOC_INCR 128
 
 /*
  * tc.str.c: Short string package
@@ -38,6 +48,7 @@
  */
 
 #include <sys/types.h>
+
 #include <stdarg.h>
 #include <bsd/vis.h>
 
@@ -46,18 +57,18 @@
 
 #ifdef SHORT_STRINGS
 
-Char  **
+Char **
 blk2short(char **src)
 {
-    size_t     n;
-    Char **sdst, **dst;
+    Char **dst, **sdst;
+    size_t n;
 
     /*
      * Count
      */
     for (n = 0; src[n] != NULL; n++)
 	continue;
-    sdst = dst = (Char **) xmalloc((size_t) ((n + 1) * sizeof(Char *)));
+    sdst = dst = xmalloc((size_t)((n + 1) * sizeof(*dst)));
 
     for (; *src != NULL; src++)
 	*dst++ = SAVE(*src);
@@ -65,18 +76,18 @@ blk2short(char **src)
     return (sdst);
 }
 
-char  **
-short2blk(Char **src)
+char **
+short2blk(Char *const *src)
 {
-    size_t     n;
-    char **sdst, **dst;
+    char **dst, **sdst;
+    size_t n;
 
     /*
      * Count
      */
     for (n = 0; src[n] != NULL; n++)
 	continue;
-    sdst = dst = (char **) xmalloc((size_t) ((n + 1) * sizeof(char *)));
+    sdst = dst = xmalloc((size_t)((n + 1) * sizeof(*dst)));
 
     for (; *src != NULL; src++)
 	*dst++ = strsave(short2str(*src));
@@ -84,19 +95,19 @@ short2blk(Char **src)
     return (sdst);
 }
 
-Char   *
-str2short(char *src)
+Char *
+str2short(const char *src)
 {
     static Char *sdst;
-    static size_t dstsize = 0;
     Char *dst, *edst;
+    static size_t dstsize = 0;
 
     if (src == NULL)
 	return (NULL);
 
     if (sdst == (NULL)) {
 	dstsize = MALLOC_INCR;
-	sdst = (Char *) xmalloc((size_t) dstsize * sizeof(Char));
+	sdst = xmalloc((size_t)dstsize * sizeof(*sdst));
     }
 
     dst = sdst;
@@ -105,8 +116,7 @@ str2short(char *src)
 	*dst++ = (Char) ((unsigned char) *src++);
 	if (dst == edst) {
 	    dstsize += MALLOC_INCR;
-	    sdst = (Char *) xrealloc((ptr_t) sdst,
-				     (size_t) dstsize * sizeof(Char));
+	    sdst = xrealloc(sdst, (size_t)dstsize * sizeof(*sdst));
 	    edst = &sdst[dstsize];
 	    dst = &edst[-MALLOC_INCR];
 	}
@@ -115,8 +125,8 @@ str2short(char *src)
     return (sdst);
 }
 
-char   *
-short2str(Char *src)
+char *
+short2str(const Char *src)
 {
     static char *sdst = NULL;
     static size_t dstsize = 0;
@@ -127,7 +137,7 @@ short2str(Char *src)
 
     if (sdst == NULL) {
 	dstsize = MALLOC_INCR;
-	sdst = (char *) xmalloc((size_t) dstsize * sizeof(char));
+	sdst = xmalloc((size_t)dstsize * sizeof(*sdst));
     }
     dst = sdst;
     edst = &dst[dstsize];
@@ -135,8 +145,7 @@ short2str(Char *src)
 	*dst++ = (char) *src++;
 	if (dst == edst) {
 	    dstsize += MALLOC_INCR;
-	    sdst = (char *) xrealloc((ptr_t) sdst,
-				     (size_t) dstsize * sizeof(char));
+	    sdst = xrealloc(sdst, (size_t)dstsize * sizeof(*sdst));
 	    edst = &sdst[dstsize];
 	    dst = &edst[-MALLOC_INCR];
 	}
@@ -145,87 +154,102 @@ short2str(Char *src)
     return (sdst);
 }
 
-size_t
-s_strlcpy(Char *dst, const Char *src, size_t siz)
+Char *
+s_strcpy(Char *dst, const Char *src)
 {
-        Char *d = dst;
-        const Char *s = src;
-        size_t n = siz;
+    Char *sdst;
 
-        /* Copy as many bytes as will fit */
-        if (n != 0 && --n != 0) {
-                do {
-                        if ((*d++ = *s++) == 0)
-                                break;
-                } while (--n != 0);
-        }
-
-        /* Not enough room in dst, add NUL and traverse rest of src */
-        if (n == 0) {
-                if (siz != 0)
-                        *d = '\0';              /* NUL-terminate dst */
-                while (*s++)
-                        ;
-        }
-
-        return(s - src - 1);    /* count does not include NUL */
+    sdst = dst;
+    while ((*dst++ = *src++) != '\0')
+	continue;
+    return (sdst);
 }
 
-size_t
-s_strlcat(Char *dst, const Char *src, size_t siz)
+Char *
+s_strncpy(Char *dst, const Char *src, size_t n)
 {
-        Char *d = dst;
-        const Char *s = src;
-        size_t n = siz;
-        size_t dlen;
+    Char *sdst;
 
-        /* Find the end of dst and adjust bytes left but don't go past end */
-        while (n-- != 0 && *d != '\0')
-                d++;
-        dlen = d - dst;
-        n = siz - dlen;
+    if (n == 0)
+	return(dst);
 
-        if (n == 0)
-                return(dlen + s_strlen((Char *)s));
-        while (*s != '\0') {
-                if (n != 1) {
-                        *d++ = *s;
-                        n--;
-                }
-                s++;
-        }
-        *d = '\0';
-
-        return(dlen + (s - src));       /* count does not include NUL */
+    sdst = dst;
+    do
+	if ((*dst++ = *src++) == '\0') {
+	    while (--n != 0)
+		*dst++ = '\0';
+	    return(sdst);
+	}
+    while (--n != 0);
+    return (sdst);
 }
 
-Char   *
-s_strchr(Char *str, int ch)
+Char *
+s_strcat(Char *dst, const Char *src)
+{
+    short *sdst;
+
+    sdst = dst;
+    while (*dst++)
+	continue;
+    --dst;
+    while ((*dst++ = *src++) != '\0')
+	continue;
+    return (sdst);
+}
+
+#ifdef NOTUSED
+Char *
+s_strncat(Char *dst, Char *src, size_t n)
+{
+    Char *sdst;
+
+    if (n == 0)
+	return (dst);
+
+    sdst = dst;
+
+    while (*dst++)
+	continue;
+    --dst;
+
+    do
+	if ((*dst++ = *src++) == '\0')
+	    return(sdst);
+    while (--n != 0)
+	continue;
+
+    *dst = '\0';
+    return (sdst);
+}
+
+#endif
+
+Char *
+s_strchr(const Char *str, int ch)
 {
     do
 	if (*str == ch)
-	    return (str);
-    while (*str++)
-	;
+	    return __UNCONST(str);
+    while (*str++);
     return (NULL);
 }
 
-Char   *
-s_strrchr(Char *str, int ch)
+Char *
+s_strrchr(const Char *str, int ch)
 {
-    Char *rstr;
+    const Char *rstr;
 
     rstr = NULL;
     do
 	if (*str == ch)
 	    rstr = str;
-    while (*str++)
-	;
-    return (rstr);
+    while (*str++);
+    return __UNCONST(rstr);
 }
 
 size_t
-s_strlen(Char *str)
+s_strlen(const Char *str)
 {
     size_t n;
 
@@ -235,7 +259,7 @@ s_strlen(Char *str)
 }
 
 int
-s_strcmp(Char *str1, Char *str2)
+s_strcmp(const Char *str1, const Char *str2)
 {
     for (; *str1 && *str1 == *str2; str1++, str2++)
 	continue;
@@ -255,7 +279,7 @@ s_strcmp(Char *str1, Char *str2)
 }
 
 int
-s_strncmp(Char *str1, Char *str2, size_t n)
+s_strncmp(const Char *str1, const Char *str2, size_t n)
 {
     if (n == 0)
 	return (0);
@@ -272,36 +296,35 @@ s_strncmp(Char *str1, Char *str2, size_t n)
 		return (1);
 	    else
 		return (*str1 - *str2);
-	    break;
 	}
-	if (*str1 == '\0')
+        if (*str1 == '\0')
 	    return(0);
 	str1++, str2++;
     } while (--n != 0);
     return(0);
 }
 
-Char   *
-s_strsave(Char *s)
+Char *
+s_strsave(const Char *s)
 {
-    Char   *n;
-    Char *p;
+    const Char *p;
+    Char *n;
 
     if (s == 0)
 	s = STRNULL;
     for (p = s; *p++;)
 	continue;
-    n = p = (Char *) xmalloc((size_t) ((p - s) * sizeof(Char)));
-    while ((*p++ = *s++) != '\0')
+    p = n = xmalloc((size_t)(p - s) * sizeof(*n));
+    while ((*n++ = *s++) != '\0')
 	continue;
-    return (n);
+    return __UNCONST(p);
 }
 
-Char   *
-s_strspl(Char *cp, Char *dp)
+Char *
+s_strspl(const Char *cp, const Char *dp)
 {
-    Char   *ep;
-    Char *p, *q;
+    Char *ep, *d;
+    const Char *p, *q;
 
     if (!cp)
 	cp = STRNULL;
@@ -311,43 +334,42 @@ s_strspl(Char *cp, Char *dp)
 	continue;
     for (q = dp; *q++;)
 	continue;
-    ep = (Char *) xmalloc((size_t)
-			  (((p - cp) + (q - dp) - 1) * sizeof(Char)));
-    for (p = ep, q = cp; (*p++ = *q++) != '\0';)
+    ep = xmalloc((size_t)((p - cp) + (q - dp) - 1) * sizeof(*ep));
+    for (d = ep, q = cp; (*d++ = *q++) != '\0';)
 	continue;
-    for (p--, q = dp; (*p++ = *q++) != '\0';)
+    for (d--, q = dp; (*d++ = *q++) != '\0';)
 	continue;
     return (ep);
 }
 
-Char   *
-s_strend(Char *cp)
+Char *
+s_strend(const Char *cp)
 {
     if (!cp)
-	return (cp);
+	return __UNCONST(cp);
     while (*cp)
 	cp++;
-    return (cp);
+    return __UNCONST(cp);
 }
 
-Char   *
-s_strstr(Char *s, Char *t)
+Char *
+s_strstr(const Char *s, const Char *t)
 {
     do {
-	Char *ss = s;
-	Char *tt = t;
+	const Char *ss = s;
+	const Char *tt = t;
 
 	do
 	    if (*tt == '\0')
-		return (s);
+		return __UNCONST(s);
 	while (*ss++ == *tt++);
     } while (*s++ != '\0');
     return (NULL);
 }
 #endif				/* SHORT_STRINGS */
 
-char   *
-short2qstr(Char *src)
+char *
+short2qstr(const Char *src)
 {
     static char *sdst = NULL;
     static size_t dstsize = 0;
@@ -358,17 +380,17 @@ short2qstr(Char *src)
 
     if (sdst == NULL) {
 	dstsize = MALLOC_INCR;
-	sdst = (char *) xmalloc((size_t) dstsize * sizeof(char));
+	sdst = xmalloc((size_t)dstsize * sizeof(*sdst));
     }
     dst = sdst;
     edst = &dst[dstsize];
     while (*src) {
+
 	if (*src & QUOTE) {
 	    *dst++ = '\\';
 	    if (dst == edst) {
 		dstsize += MALLOC_INCR;
-		sdst = (char *) xrealloc((ptr_t) sdst,
-					 (size_t) dstsize * sizeof(char));
+		sdst = xrealloc(sdst, (size_t)dstsize * sizeof(*sdst));
 		edst = &sdst[dstsize];
 		dst = &edst[-MALLOC_INCR];
 	    }
@@ -376,8 +398,7 @@ short2qstr(Char *src)
 	*dst++ = (char) *src++;
 	if (dst == edst) {
 	    dstsize += MALLOC_INCR;
-	    sdst = (char *) xrealloc((ptr_t) sdst,
-				     (size_t) dstsize * sizeof(char));
+	    sdst = xrealloc(sdst, (size_t)dstsize * sizeof(*sdst));
 	    edst = &sdst[dstsize];
 	    dst = &edst[-MALLOC_INCR];
 	}
@@ -390,30 +411,29 @@ short2qstr(Char *src)
  * XXX: Should we worry about QUOTE'd chars?
  */
 char *
-vis_str(Char *cp)
+vis_str(const Char *cp)
 {
     static char *sdst = NULL;
     static size_t dstsize = 0;
+    const Char *dp;
     size_t n;
-    Char *dp;
 
     if (cp == NULL)
 	return (NULL);
-
+    
     for (dp = cp; *dp++;)
 	continue;
-    n = ((dp - cp) << 2) + 1; /* 4 times + NUL */
+    n = ((size_t)(dp - cp) << 2) + 1; /* 4 times + NULL */
     if (dstsize < n) {
-	sdst = (char *) (dstsize ?
-			    xrealloc(sdst, (size_t) n * sizeof(char)) :
-			    xmalloc((size_t) n * sizeof(char)));
+	sdst = (dstsize ? 
+	    xrealloc(sdst, (size_t)n * sizeof(*sdst)) :
+	    xmalloc((size_t)n * sizeof(*sdst)));
 	dstsize = n;
     }
-    /*
+    /* 
      * XXX: When we are in AsciiOnly we want all characters >= 0200 to
      * be encoded, but currently there is no way in vis to do that.
      */
-    (void) strnvis(sdst, short2str(cp), dstsize, VIS_NOSLASH);
+    (void)strvis(sdst, short2str(cp), VIS_NOSLASH);
     return (sdst);
 }
-

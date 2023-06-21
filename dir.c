@@ -1,5 +1,4 @@
-/*	$OpenBSD: dir.c,v 1.14 2009/10/27 23:59:21 deraadt Exp $	*/
-/*	$NetBSD: dir.c,v 1.9 1995/03/21 09:02:42 cgd Exp $	*/
+/* $NetBSD: dir.c,v 1.35 2020/08/09 00:34:21 dholland Exp $ */
 
 /*-
  * Copyright (c) 1980, 1991, 1993
@@ -30,13 +29,23 @@
  * SUCH DAMAGE.
  */
 
+#include <bsd/sys/cdefs.h>
+#ifndef lint
+#if 0
+static char sccsid[] = "@(#)dir.c	8.1 (Berkeley) 5/31/93";
+#else
+__RCSID("$NetBSD: dir.c,v 1.35 2020/08/09 00:34:21 dholland Exp $");
+#endif
+#endif /* not lint */
+
 #include <sys/param.h>
 #include <sys/stat.h>
+
 #include <errno.h>
-#include <stdlib.h>
-#include <bsd/string.h>
-#include <unistd.h>
 #include <stdarg.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 #include "csh.h"
 #include "dir.h"
@@ -44,18 +53,20 @@
 
 /* Directory management. */
 
-static struct directory
-		*dfind(Char *);
-static Char	*dfollow(Char *);
-static void	 printdirs(void);
-static Char	*dgoto(Char *);
-static void	 dnewcwd(struct directory *);
-static void	 dset(Char *);
+static struct directory *dfind(Char *);
+static Char *dfollow(Char *);
+static void printdirs(void);
+static Char *dgoto(Char *);
+static void skipargs(Char ***, const char *);
+static void dnewcwd(struct directory *);
+static void dset(Char *);
 
 struct directory dhead;		/* "head" of loop */
-int     printd;			/* force name to be printed */
+int printd;			/* force name to be printed */
 
 static int dirflag = 0;
+
+struct directory *dcwd;
 
 /*
  * dinit - initialize current working directory
@@ -63,31 +74,32 @@ static int dirflag = 0;
 void
 dinit(Char *hp)
 {
-    char *tcp;
-    Char *cp;
+    static const char emsg[] = "csh: Trying to start from \"%s\"\n";
+    char path[MAXPATHLEN];
     struct directory *dp;
-    char    path[MAXPATHLEN];
-    static char *emsg = "csh: Trying to start from \"%s\"\n";
+    const char *ecp;
+    Char *cp;
 
     /* Don't believe the login shell home, because it may be a symlink */
-    tcp = getcwd(path, MAXPATHLEN);
-    if (tcp == NULL || *tcp == '\0') {
-	(void) fprintf(csherr, "csh: %s\n", strerror(errno));
+    ecp = getcwd(path, MAXPATHLEN);
+    if (ecp == NULL || *ecp == '\0') {
+	(void)fprintf(csherr, "csh: %s\n", strerror(errno));
 	if (hp && *hp) {
-	    tcp = short2str(hp);
-	    if (chdir(tcp) == -1)
+	    ecp = short2str(hp);
+	    if (chdir(ecp) == -1)
 		cp = NULL;
 	    else
-		cp = hp;
-	    (void) fprintf(csherr, emsg, vis_str(hp));
+		cp = Strsave(hp);
+	    (void)fprintf(csherr, emsg, vis_str(hp));
 	}
 	else
 	    cp = NULL;
 	if (cp == NULL) {
-	    (void) fprintf(csherr, emsg, "/");
-	    if (chdir("/") == -1)
+	    (void)fprintf(csherr, emsg, "/");
+	    if (chdir("/") == -1) {
 		/* I am not even try to print an error message! */
 		xexit(1);
+	    }
 	    cp = SAVE("/");
 	}
     }
@@ -98,11 +110,11 @@ dinit(Char *hp)
 	 * See if $HOME is the working directory we got and use that
 	 */
 	if (hp && *hp &&
-	    stat(tcp, &swd) != -1 && stat(short2str(hp), &shp) != -1 &&
+	    stat(ecp, &swd) != -1 && stat(short2str(hp), &shp) != -1 &&
 	    swd.st_dev == shp.st_dev && swd.st_ino == shp.st_ino)
-	    cp = hp;
+	    cp = Strsave(hp);
 	else {
-	    char   *cwd;
+	    const char *cwd;
 
 	    /*
 	     * use PWD if we have it (for subshells)
@@ -110,14 +122,14 @@ dinit(Char *hp)
 	    if ((cwd = getenv("PWD")) != NULL) {
 		if (stat(cwd, &shp) != -1 && swd.st_dev == shp.st_dev &&
 		    swd.st_ino == shp.st_ino)
-		    tcp = cwd;
+		    ecp = cwd;
 	    }
-	    cp = dcanon(SAVE(tcp), STRNULL);
+	    cp = dcanon(SAVE(ecp), STRNULL);
 	}
     }
 
-    dp = (struct directory *) xcalloc(1, sizeof(struct directory));
-    dp->di_name = Strsave(cp);
+    dp = xcalloc(1, sizeof(*dp));
+    dp->di_name = cp;
     dp->di_count = 0;
     dhead.di_next = dhead.di_prev = dp;
     dp->di_next = dp->di_prev = &dhead;
@@ -128,12 +140,14 @@ dinit(Char *hp)
 static void
 dset(Char *dp)
 {
+    Char **vec;
+
     /*
      * Don't call set() directly cause if the directory contains ` or
      * other junk characters glob will fail.
      */
-    Char **vec = (Char **) xmalloc((size_t) (2 * sizeof(Char **)));
 
+    vec = xmalloc(2 * sizeof(*vec));
     vec[0] = Strsave(dp);
     vec[1] = 0;
     setq(STRcwd, vec, &shvhed);
@@ -145,10 +159,11 @@ dset(Char *dp)
 #define DIR_LINE 4
 
 static void
-skipargs(Char ***v, char *str)
+skipargs(Char ***v, const char *str)
 {
-    Char  **n = *v, *s;
+    Char  **n, *s;
 
+    n = *v;
     dirflag = 0;
     for (n++; *n != NULL && (*n)[0] == '-'; n++)
 	for (s = &((*n)[1]); *s; s++)
@@ -156,15 +171,15 @@ skipargs(Char ***v, char *str)
 	    case 'l':
 		dirflag |= DIR_LONG;
 		break;
-	    case 'v':
-		dirflag |= DIR_VERT;
-		break;
 	    case 'n':
 		dirflag |= DIR_LINE;
 		break;
+	    case 'v':
+		dirflag |= DIR_VERT;
+		break;
 	    default:
 		stderror(ERR_DIRUS, vis_str(**v), str);
-		break;
+		/* NOTREACHED */
 	    }
     *v = n;
 }
@@ -187,9 +202,10 @@ static void
 printdirs(void)
 {
     struct directory *dp;
-    Char   *s, *hp = value(STRhome);
-    int     idx, len, cur;
+    Char *hp, *s;
+    size_t cur, idx, len;
 
+    hp = value(STRhome);
     if (*hp == '\0')
 	hp = NULL;
     dp = dcwd;
@@ -199,43 +215,43 @@ printdirs(void)
 	if (dp == &dhead)
 	    continue;
 	if (dirflag & DIR_VERT) {
-	    (void) fprintf(cshout, "%d\t", idx++);
+	    (void)fprintf(cshout, "%zu\t", idx++);
 	    cur = 0;
 	}
 	if (!(dirflag & DIR_LONG) && hp != NULL && !eq(hp, STRslash) &&
 	    (len = Strlen(hp), Strncmp(hp, dp->di_name, len) == 0) &&
-	    (dp->di_name[len] == '\0' || dp->di_name[len] == '/'))
+	    (dp->di_name[len] == '\0' || dp->di_name[len] == '/')) 
 	    len = Strlen(s = (dp->di_name + len)) + 2;
 	else
 	    len = Strlen(s = dp->di_name) + 1;
 
 	cur += len;
 	if ((dirflag & DIR_LINE) && cur >= 80 - 1 && len < 80) {
-	    (void) fprintf(cshout, "\n");
+	    (void)fprintf(cshout, "\n");
 	    cur = len;
 	}
-	(void) fprintf(cshout, s != dp->di_name ? "~%s%c" : "%s%c",
-		vis_str(s), (dirflag & DIR_VERT) ? '\n' : ' ');
+	(void) fprintf(cshout, "%s%s%c", (s != dp->di_name)? "~" : "",
+	    vis_str(s), (dirflag & DIR_VERT) ? '\n' : ' ');
     } while ((dp = dp->di_prev) != dcwd);
     if (!(dirflag & DIR_VERT))
-	(void) fprintf(cshout, "\n");
+	(void)fprintf(cshout, "\n");
 }
 
 void
 dtildepr(Char *home, Char *dir)
 {
-
     if (!eq(home, STRslash) && prefix(home, dir))
-	(void) fprintf(cshout, "~%s", vis_str(dir + Strlen(home)));
+	(void)fprintf(cshout, "~%s", vis_str(dir + Strlen(home)));
     else
-	(void) fprintf(cshout, "%s", vis_str(dir));
+	(void)fprintf(cshout, "%s", vis_str(dir));
 }
 
 void
 dtilde(void)
 {
-    struct directory *d = dcwd;
+    struct directory *d;
 
+    d = dcwd;
     do {
 	if (d == &dhead)
 	    continue;
@@ -250,25 +266,22 @@ dtilde(void)
  *	If the name starts with . or .. then we might need to normalize
  *	it depending on the symbolic link flags
  */
-Char   *
+Char *
 dnormalize(Char *cp)
 {
-
 #define UC (unsigned char)
 #define ISDOT(c) (UC(c)[0] == '.' && ((UC(c)[1] == '\0') || (UC(c)[1] == '/')))
 #define ISDOTDOT(c) (UC(c)[0] == '.' && ISDOT(&((c)[1])))
-
     if ((unsigned char) cp[0] == '/')
 	return (Strsave(cp));
 
     if (adrof(STRignore_symlinks)) {
-	int     dotdot = 0;
+	size_t  dotdot = 0;
 	Char   *dp, *cwd;
-	size_t	len;
 
-	len = (size_t) (Strlen(dcwd->di_name) + 3);
-	cwd = (Char *) xmalloc(len * sizeof(Char));
-	(void) Strlcpy(cwd, dcwd->di_name, len);
+	cwd = xmalloc((size_t)((Strlen(dcwd->di_name) + 3) *
+	    sizeof(Char)));
+	(void)Strcpy(cwd, dcwd->di_name);
 
 	/*
 	 * Ignore . and count ..'s
@@ -287,19 +300,21 @@ dnormalize(Char *cp)
 	    else
 		break;
 	}
-	while (dotdot > 0)
-	    if ((dp = Strrchr(cwd, '/'))) {
+	while (dotdot > 0) {
+	    dp = Strrchr(cwd, '/');
+	    if (dp) {
 		*dp = '\0';
 		dotdot--;
 	    }
 	    else
 		break;
+	}
 
 	if (*cp) {
 	    cwd[dotdot = Strlen(cwd)] = '/';
 	    cwd[dotdot + 1] = '\0';
 	    dp = Strspl(cwd, cp);
-	    xfree((ptr_t) cwd);
+	    free(cwd);
 	    return dp;
 	}
 	else {
@@ -320,8 +335,8 @@ void
 /*ARGSUSED*/
 dochngd(Char **v, struct command *t)
 {
-    Char *cp;
     struct directory *dp;
+    Char *cp;
 
     skipargs(&v, " [<dir>]");
     printd = 0;
@@ -332,11 +347,8 @@ dochngd(Char **v, struct command *t)
 	    stderror(ERR_NAME | ERR_CANTCHANGE);
 	cp = Strsave(cp);
     }
-    else if (v[1] != NULL) {
+    else if (v[1] != NULL)
 	stderror(ERR_NAME | ERR_TOOMANY);
-	/* NOTREACHED */
-	return;
-    }
     else if ((dp = dfind(*v)) != 0) {
 	char   *tmp;
 
@@ -351,7 +363,7 @@ dochngd(Char **v, struct command *t)
     }
     else
 	cp = dfollow(*v);
-    dp = (struct directory *) xcalloc(1, sizeof(struct directory));
+    dp = xcalloc(1, sizeof(*dp));
     dp->di_name = cp;
     dp->di_count = 0;
     dp->di_next = dcwd->di_next;
@@ -365,19 +377,19 @@ dochngd(Char **v, struct command *t)
 static Char *
 dgoto(Char *cp)
 {
-    Char   *dp;
+    Char *dp;
 
     if (*cp != '/') {
 	Char *p, *q;
-	int     cwdlen;
+	size_t cwdlen;
 
 	for (p = dcwd->di_name; *p++;)
 	    continue;
-	if ((cwdlen = p - dcwd->di_name - 1) == 1)	/* root */
+	if ((cwdlen = (size_t)(p - dcwd->di_name - 1)) == 1)	/* root */
 	    cwdlen = 0;
 	for (p = cp; *p++;)
 	    continue;
-	dp = (Char *) xmalloc((size_t)((cwdlen + (p - cp) + 1) * sizeof(Char)));
+	dp = xmalloc((size_t)(cwdlen + (size_t)(p - cp) + 1) * sizeof(Char));
 	for (p = dp, q = dcwd->di_name; (*p++ = *q++) != '\0';)
 	    continue;
 	if (cwdlen)
@@ -386,7 +398,7 @@ dgoto(Char *cp)
 	    p--;		/* don't add a / after root */
 	for (q = cp; (*p++ = *q++) != '\0';)
 	    continue;
-	xfree((ptr_t) cp);
+	free(cp);
 	cp = dp;
 	dp += cwdlen;
     }
@@ -403,9 +415,9 @@ dgoto(Char *cp)
 static Char *
 dfollow(Char *cp)
 {
-    Char *dp;
+    char ebuf[MAXPATHLEN];
     struct varent *c;
-    char    ebuf[MAXPATHLEN];
+    Char *dp;
     int serrno;
 
     cp = globone(cp, G_ERROR);
@@ -414,11 +426,11 @@ dfollow(Char *cp)
      */
     dp = dnormalize(cp);
     if (chdir(short2str(dp)) >= 0) {
-	xfree((ptr_t) cp);
+	free(cp);
 	return dgoto(dp);
     }
     else {
-	xfree((ptr_t) dp);
+	free(dp);
 	if (chdir(short2str(cp)) >= 0)
 	    return dgoto(cp);
 	serrno = errno;
@@ -438,7 +450,7 @@ dfollow(Char *cp)
 		continue;
 	    if (chdir(short2str(buf)) >= 0) {
 		printd = 1;
-		xfree((ptr_t) cp);
+		free(cp);
 		cp = Strsave(buf);
 		return dgoto(cp);
 	    }
@@ -446,17 +458,16 @@ dfollow(Char *cp)
     }
     dp = value(cp);
     if ((dp[0] == '/' || dp[0] == '.') && chdir(short2str(dp)) >= 0) {
-	xfree((ptr_t) cp);
+	free(cp);
 	cp = Strsave(dp);
 	printd = 1;
 	return dgoto(cp);
     }
-    (void) strlcpy(ebuf, short2str(cp), sizeof ebuf);
-    xfree((ptr_t) cp);
+    (void)strcpy(ebuf, short2str(cp));
+    free(cp);
     stderror(ERR_SYSTEM, ebuf, strerror(serrno));
-    return (NULL);
+    /* NOTREACHED */
 }
-
 
 /*
  * dopushd - push new directory onto directory stack.
@@ -487,11 +498,8 @@ dopushd(Char **v, struct command *t)
 	dcwd->di_next->di_prev = dp;
 	dcwd->di_next = dp;
     }
-    else if (v[1] != NULL) {
+    else if (v[1] != NULL)
 	stderror(ERR_NAME | ERR_TOOMANY);
-	/* NOTREACHED */
-	return;
-    }
     else if ((dp = dfind(*v)) != NULL) {
 	char   *tmp;
 
@@ -502,7 +510,7 @@ dopushd(Char **v, struct command *t)
 	Char *ccp;
 
 	ccp = dfollow(*v);
-	dp = (struct directory *) xcalloc(1, sizeof(struct directory));
+	dp = xcalloc(1, sizeof(*dp));
 	dp->di_name = ccp;
 	dp->di_count = 0;
 	dp->di_prev = dcwd;
@@ -520,8 +528,8 @@ static struct directory *
 dfind(Char *cp)
 {
     struct directory *dp;
-    int i;
     Char *ep;
+    int i;
 
     if (*cp++ != '+')
 	return (0);
@@ -555,17 +563,14 @@ dopopd(Char **v, struct command *t)
     printd = 1;
     if (*v == NULL)
 	dp = dcwd;
-    else if (v[1] != NULL) {
+    else if (v[1] != NULL)
 	stderror(ERR_NAME | ERR_TOOMANY);
-	/* NOTREACHED */
-	return;
-    }
     else if ((dp = dfind(*v)) == 0)
 	stderror(ERR_NAME | ERR_BADDIR);
     if (dp->di_prev == &dhead && dp->di_next == &dhead)
 	stderror(ERR_NAME | ERR_EMPTY);
     if (dp == dcwd) {
-	char   *tmp;
+	char *tmp;
 
 	if ((p = dp->di_prev) == &dhead)
 	    p = dhead.di_prev;
@@ -593,8 +598,8 @@ dfree(struct directory *dp)
 	dp->di_next = dp->di_prev = 0;
     }
     else {
-	xfree((char *) dp->di_name);
-	xfree((ptr_t) dp);
+	free(dp->di_name);
+	free(dp);
     }
 }
 
@@ -603,34 +608,33 @@ dfree(struct directory *dp)
  *	we are of course assuming that the file system is standardly
  *	constructed (always have ..'s, directories have links)
  */
-Char   *
+Char *
 dcanon(Char *cp, Char *p)
 {
-    Char *sp;
+    Char slink[MAXPATHLEN];
+    char tlink[MAXPATHLEN];
+    Char *newcp, *sp;
     Char *p1, *p2;	/* general purpose */
-    bool    slash;
-
-    Char    link[MAXPATHLEN];
-    char    tlink[MAXPATHLEN];
-    int     cc;
-    Char   *newcp;
+    ssize_t cc;
+    size_t len;
+    int slash;
 
     /*
      * christos: if the path given does not start with a slash prepend cwd. If
      * cwd does not start with a path or the result would be too long abort().
      */
     if (*cp != '/') {
-	Char    tmpdir[MAXPATHLEN];
+	Char tmpdir[MAXPATHLEN];
 
 	p1 = value(STRcwd);
 	if (p1 == NULL || *p1 != '/')
 	    abort();
 	if (Strlen(p1) + Strlen(cp) + 1 >= MAXPATHLEN)
 	    abort();
-	(void) Strlcpy(tmpdir, p1, sizeof tmpdir/sizeof(Char));
-	(void) Strlcat(tmpdir, STRslash, sizeof tmpdir/sizeof(Char));
-	(void) Strlcat(tmpdir, cp, sizeof tmpdir/sizeof(Char));
-	xfree((ptr_t) cp);
+	(void)Strcpy(tmpdir, p1);
+	(void)Strcat(tmpdir, STRslash);
+	(void)Strcat(tmpdir, cp);
+	free(cp);
 	cp = p = Strsave(tmpdir);
     }
 
@@ -643,19 +647,19 @@ dcanon(Char *cp, Char *p)
 		continue;
 	p = sp;			/* save start of component */
 	slash = 0;
-	while (*p)		/* find next slash or end of path */
-	    if (*++p == '/') {
+	while (*++p)		/* find next slash or end of path */
+	    if (*p == '/') {
 		slash = 1;
 		*p = 0;
 		break;
 	    }
 
-	if (*sp == '\0')	/* if component is null */
+	if (*sp == '\0') {	/* if component is null */
 	    if (--sp == cp)	/* if path is one char (i.e. /) */
 		break;
 	    else
 		*sp = '\0';
-	else if (sp[0] == '.' && sp[1] == 0) {
+	} else if (sp[0] == '.' && sp[1] == 0) {
 	    if (slash) {
 		for (p1 = sp, p2 = p + 1; (*p1++ = *p2++) != '\0';)
 		    continue;
@@ -674,9 +678,9 @@ dcanon(Char *cp, Char *p)
 	    *--sp = 0;		/* form the pathname for readlink */
 	    if (sp != cp && !adrof(STRignore_symlinks) &&
 		(cc = readlink(short2str(cp), tlink,
-			       sizeof tlink-1)) >= 0) {
+			       sizeof(tlink) - 1)) >= 0) {
 		tlink[cc] = '\0';
-		(void) Strlcpy(link, str2short(tlink), sizeof link/sizeof(Char));
+		(void)Strcpy(slink, str2short(tlink));
 
 		if (slash)
 		    *p = '/';
@@ -689,7 +693,7 @@ dcanon(Char *cp, Char *p)
 		 */
 		for (p1 = p; *p1++;)
 		    continue;
-		if (*link != '/') {
+		if (*slink != '/') {
 		    /*
 		     * Relative path, expand it between the "yyy/" and the
 		     * "/..". First, back sp up to the character past "yyy/".
@@ -699,17 +703,16 @@ dcanon(Char *cp, Char *p)
 		    sp++;
 		    *sp = 0;
 		    /*
-		     * New length is "yyy/" + link + "/.." and rest
+		     * New length is "yyy/" + slink + "/.." and rest
 		     */
-		    p1 = newcp = (Char *) xmalloc((size_t)
-						(((sp - cp) + cc + (p1 - p)) *
-						 sizeof(Char)));
+		    p1 = newcp = xmalloc(
+		        (size_t)((sp - cp) + cc + (p1 - p)) * sizeof(Char));
 		    /*
 		     * Copy new path into newcp
 		     */
 		    for (p2 = cp; (*p1++ = *p2++) != '\0';)
 			continue;
-		    for (p1--, p2 = link; (*p1++ = *p2++) != '\0';)
+		    for (p1--, p2 = slink; (*p1++ = *p2++) != '\0';)
 			continue;
 		    for (p1--, p2 = p; (*p1++ = *p2++) != '\0';)
 			continue;
@@ -720,14 +723,14 @@ dcanon(Char *cp, Char *p)
 		}
 		else {
 		    /*
-		     * New length is link + "/.." and rest
+		     * New length is slink + "/.." and rest
 		     */
-		    p1 = newcp = (Char *) xmalloc((size_t)
-					    ((cc + (p1 - p)) * sizeof(Char)));
+		    p1 = newcp = xmalloc(
+		        (size_t)(cc + (p1 - p)) * sizeof(Char));
 		    /*
 		     * Copy new path into newcp
 		     */
-		    for (p2 = link; (*p1++ = *p2++) != '\0';)
+		    for (p2 = slink; (*p1++ = *p2++) != '\0';)
 			continue;
 		    for (p1--, p2 = p; (*p1++ = *p2++) != '\0';)
 			continue;
@@ -736,7 +739,7 @@ dcanon(Char *cp, Char *p)
 		     */
 		    p = newcp;
 		}
-		xfree((ptr_t) cp);
+		free(cp);
 		cp = newcp;
 		continue;	/* canonicalize the link */
 	    }
@@ -758,10 +761,9 @@ dcanon(Char *cp, Char *p)
 
 	    if (sp != cp && adrof(STRchase_symlinks) &&
 		!adrof(STRignore_symlinks) &&
-		(cc = readlink(short2str(cp), tlink,
-			       sizeof tlink-1)) >= 0) {
-		(void) Strlcpy(link, str2short(tlink), sizeof link/sizeof(Char));
-		link[cc] = '\0';
+		(cc = readlink(short2str(cp), tlink, sizeof(tlink)-1)) >= 0) {
+		tlink[cc] = '\0';
+		(void)Strcpy(slink, str2short(tlink));
 
 		/*
 		 * restore the '/'.
@@ -779,7 +781,7 @@ dcanon(Char *cp, Char *p)
 		 */
 		for (p1 = p; *p1++;)
 		    continue;
-		if (*link != '/') {
+		if (*slink != '/') {
 		    /*
 		     * Relative path, expand it between the "yyy/" and the
 		     * remainder. First, back sp up to the character past
@@ -790,17 +792,16 @@ dcanon(Char *cp, Char *p)
 		    sp++;
 		    *sp = 0;
 		    /*
-		     * New length is "yyy/" + link + "/.." and rest
+		     * New length is "yyy/" + slink + "/.." and rest
 		     */
-		    p1 = newcp = (Char *) xmalloc((size_t)
-						  (((sp - cp) + cc + (p1 - p))
-						   * sizeof(Char)));
+		    p1 = newcp = xmalloc(
+		        (size_t)((sp - cp) + cc + (p1 - p)) * sizeof(Char));
 		    /*
 		     * Copy new path into newcp
 		     */
 		    for (p2 = cp; (*p1++ = *p2++) != '\0';)
 			continue;
-		    for (p1--, p2 = link; (*p1++ = *p2++) != '\0';)
+		    for (p1--, p2 = slink; (*p1++ = *p2++) != '\0';)
 			continue;
 		    for (p1--, p2 = p; (*p1++ = *p2++) != '\0';)
 			continue;
@@ -811,14 +812,14 @@ dcanon(Char *cp, Char *p)
 		}
 		else {
 		    /*
-		     * New length is link + the rest
+		     * New length is slink + the rest
 		     */
-		    p1 = newcp = (Char *) xmalloc((size_t)
-					    ((cc + (p1 - p)) * sizeof(Char)));
+		    p1 = newcp = xmalloc(
+		        (size_t)(cc + (p1 - p)) * sizeof(Char));
 		    /*
 		     * Copy new path into newcp
 		     */
-		    for (p2 = link; (*p1++ = *p2++) != '\0';)
+		    for (p2 = slink; (*p1++ = *p2++) != '\0';)
 			continue;
 		    for (p1--, p2 = p; (*p1++ = *p2++) != '\0';)
 			continue;
@@ -827,7 +828,7 @@ dcanon(Char *cp, Char *p)
 		     */
 		    p = newcp;
 		}
-		xfree((ptr_t) cp);
+		free(cp);
 		cp = newcp;
 		continue;	/* canonicalize the link */
 	    }
@@ -840,14 +841,14 @@ dcanon(Char *cp, Char *p)
      * fix home...
      */
     p1 = value(STRhome);
-    cc = Strlen(p1);
+    len = Strlen(p1);
     /*
      * See if we're not in a subdir of STRhome
      */
     if (p1 && *p1 == '/' &&
-	(Strncmp(p1, cp, cc) != 0 || (cp[cc] != '/' && cp[cc] != '\0'))) {
-	static ino_t home_ino = -1;
-	static dev_t home_dev = -1;
+	(Strncmp(p1, cp, len) != 0 || (cp[len] != '/' && cp[len] != '\0'))) {
+	static ino_t home_ino;
+	static dev_t home_dev = (dev_t)-1;
 	static Char *home_ptr = NULL;
 	struct stat statbuf;
 
@@ -863,8 +864,7 @@ dcanon(Char *cp, Char *p)
 	/*
 	 * Start comparing dev & ino backwards
 	 */
-	Strlcpy(link, cp, sizeof link/sizeof(Char));
-	p2 = link;
+	p2 = Strcpy(slink, cp);
 	for (sp = NULL; *p2 && stat(short2str(p2), &statbuf) != -1;) {
 	    if (statbuf.st_dev == home_dev &&
 		statbuf.st_ino == home_ino) {
@@ -882,7 +882,7 @@ dcanon(Char *cp, Char *p)
 	     * Use STRhome to make '~' work
 	     */
 	    newcp = Strspl(p1, cp + Strlen(p2));
-	    xfree((ptr_t) cp);
+	    free(cp);
 	    cp = newcp;
 	}
     }

@@ -1,5 +1,4 @@
-/*	$OpenBSD: proc.h,v 1.3 2003/06/02 23:32:07 millert Exp $	*/
-/*	$NetBSD: proc.h,v 1.7 1995/04/29 23:21:35 mycroft Exp $	*/
+/* $NetBSD: proc.h,v 1.15 2020/04/03 18:11:29 joerg Exp $ */
 
 /*-
  * Copyright (c) 1980, 1991, 1993
@@ -32,6 +31,9 @@
  *	@(#)proc.h	8.1 (Berkeley) 5/31/93
  */
 
+#ifndef _PROC_H_
+#define _PROC_H_
+
 /*
  * Structure for each process the shell knows about:
  *	allocated and filled by pcreate.
@@ -44,16 +46,16 @@ struct process {
     struct process *p_next;	/* next in global "proclist" */
     struct process *p_friends;	/* next in job list (or self) */
     struct directory *p_cwd;	/* cwd of the job (only in head) */
-    short unsigned p_flags;	/* various job status flags */
-    char    p_reason;		/* reason for entering this state */
-    int     p_index;		/* shorthand job index */
-    pid_t   p_pid;
-    pid_t   p_jobid;		/* pid of job leader */
+    int p_flags;		/* various job status flags */
+    int p_reason;		/* reason for entering this state */
+    int p_index;		/* shorthand job index */
+    pid_t p_pid;
+    pid_t p_jobid;		/* pid of job leader */
     /* if a job is stopped/background p_jobid gives its pgrp */
-    struct timeval p_btime;	/* begin time */
-    struct timeval p_etime;	/* end time */
+    struct timespec p_btime;	/* begin time */
+    struct timespec p_etime;	/* end time */
     struct rusage p_rusage;
-    Char   *p_command;		/* first PMAXLEN chars of command */
+    Char *p_command;		/* first PMAXLEN chars of command */
 };
 
 /* flag values for p_flags */
@@ -62,8 +64,6 @@ struct process {
 #define	PNEXITED	(1<<2)	/* normally exited */
 #define	PAEXITED	(1<<3)	/* abnormally exited */
 #define	PSIGNALED	(1<<4)	/* terminated by a signal != SIGINT */
-
-#define	PALLSTATES	(PRUNNING|PSTOPPED|PNEXITED|PAEXITED|PSIGNALED|PINTERRUPTED)
 #define	PNOTIFY		(1<<5)	/* notify async when done */
 #define	PTIME		(1<<6)	/* job times should be printed */
 #define	PAWAITED	(1<<7)	/* top level is waiting for it */
@@ -75,6 +75,8 @@ struct process {
 #define	PINTERRUPTED	(1<<13)	/* job stopped via interrupt signal */
 #define	PPTIME		(1<<14)	/* time individual process */
 #define	PNEEDNOTE	(1<<15)	/* notify as soon as practical */
+
+#define	PALLSTATES	(PRUNNING|PSTOPPED|PNEXITED|PAEXITED|PSIGNALED|PINTERRUPTED)
 
 #define	PMAXLEN		80
 
@@ -88,13 +90,15 @@ struct process {
 #define	JOBDIR		0100	/* print job's dir if not the same */
 #define	AREASON		0200
 
-struct process proclist;	/* list head of all processes */
-bool    pnoprocesses;		/* pchild found nothing to wait for */
+extern struct process proclist;	/* list head of all processes */
+extern int pnoprocesses;	/* pchild found nothing to wait for */
 
-struct process *pholdjob;	/* one level stack of current jobs */
+extern struct process *pholdjob; /* one level stack of current jobs */
 
-struct process *pcurrjob;	/* current job */
-struct process *pcurrent;	/* current job in table */
-struct process *pprevious;	/* previous job in table */
+extern struct process *pcurrjob; /* current job */
+extern struct process *pcurrent; /* current job in table */
+extern struct process *pprevious; /* previous job in table */
 
-int    pmaxindex;		/* current maximum job index */
+extern int pmaxindex;		/* current maximum job index */
+
+#endif /* !_PROC_H_ */

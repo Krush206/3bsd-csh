@@ -1,5 +1,4 @@
-/*	$OpenBSD: time.c,v 1.12 2009/10/27 23:59:21 deraadt Exp $	*/
-/*	$NetBSD: time.c,v 1.7 1995/03/21 13:55:25 mycroft Exp $	*/
+/* $NetBSD: time.c,v 1.23 2020/10/17 08:46:02 mlelstv Exp $ */
 
 /*-
  * Copyright (c) 1980, 1991, 1993
@@ -30,25 +29,39 @@
  * SUCH DAMAGE.
  */
 
+#include <bsd/sys/cdefs.h>
+#ifndef lint
+#if 0
+static char sccsid[] = "@(#)time.c	8.1 (Berkeley) 5/31/93";
+#else
+__RCSID("$NetBSD: time.c,v 1.23 2020/10/17 08:46:02 mlelstv Exp $");
+#endif
+#endif /* not lint */
+
+#ifndef NOT_CSH
 #include <sys/types.h>
 #include <stdarg.h>
-
 #include "csh.h"
 #include "extern.h"
+#endif
+#include <bsd/libutil.h>
+#include <time.h>
 
 /*
  * C Shell - routines handling process timing and niceing
  */
-static void	pdeltat(struct timeval *, struct timeval *);
+static void pdeltat(FILE *, int, struct timeval *, struct timeval *);
+static void pcsecs(FILE *, long);
 
+#ifndef NOT_CSH
 void
 settimes(void)
 {
     struct rusage ruch;
 
-    (void) gettimeofday(&time0, NULL);
-    (void) getrusage(RUSAGE_SELF, &ru0);
-    (void) getrusage(RUSAGE_CHILDREN, &ruch);
+    (void)clock_gettime(CLOCK_MONOTONIC, &time0);
+    (void)getrusage(RUSAGE_SELF, &ru0);
+    (void)getrusage(RUSAGE_CHILDREN, &ruch);
     ruadd(&ru0, &ruch);
 }
 
@@ -60,14 +73,14 @@ void
 /*ARGSUSED*/
 dotime(Char **v, struct command *t)
 {
-    struct timeval timedol;
     struct rusage ru1, ruch;
+    struct timespec timedol;
 
-    (void) getrusage(RUSAGE_SELF, &ru1);
-    (void) getrusage(RUSAGE_CHILDREN, &ruch);
+    (void)getrusage(RUSAGE_SELF, &ru1);
+    (void)getrusage(RUSAGE_CHILDREN, &ruch);
     ruadd(&ru1, &ruch);
-    (void) gettimeofday(&timedol, NULL);
-    prusage(&ru0, &ru1, &timedol, &time0);
+    (void)clock_gettime(CLOCK_MONOTONIC, &timedol);
+    prusage(cshout, &ru0, &ru1, &timedol, &time0);
 }
 
 /*
@@ -78,14 +91,16 @@ void
 donice(Char **v, struct command *t)
 {
     Char *cp;
-    int     nval = 0;
+    int nval;
 
-    v++, cp = *v++;
+    nval = 0;
+    v++;
+    cp = *v++;
     if (cp == 0)
 	nval = 4;
     else if (*v == 0 && any("+-", cp[0]))
 	nval = getn(cp);
-    (void) setpriority(PRIO_PROCESS, 0, nval);
+    (void)setpriority(PRIO_PROCESS, 0, nval);
 }
 
 void
@@ -112,165 +127,161 @@ ruadd(struct rusage *ru, struct rusage *ru2)
 }
 
 void
-prusage(struct rusage *r0, struct rusage *r1, struct timeval *e,
-    struct timeval *b)
+prusage(FILE *fp, struct rusage *r0, struct rusage *r1, struct timespec *e,
+        struct timespec *b)
 {
-    time_t t =
-    (r1->ru_utime.tv_sec - r0->ru_utime.tv_sec) * 100 +
-    (r1->ru_utime.tv_usec - r0->ru_utime.tv_usec) / 10000 +
-    (r1->ru_stime.tv_sec - r0->ru_stime.tv_sec) * 100 +
-    (r1->ru_stime.tv_usec - r0->ru_stime.tv_usec) / 10000;
-    char *cp;
-    long i;
-    struct varent *vp = adrof(STRtime);
+    struct varent *vp;
+    const char *cp;
 
-    int     ms =
-    (e->tv_sec - b->tv_sec) * 100 + (e->tv_usec - b->tv_usec) / 10000;
-
-    cp = "%Uu %Ss %E %P %X+%Dk %I+%Oio %Fpf+%Ww";
+    vp = adrof(STRtime);
 
     if (vp && vp->vec[0] && vp->vec[1])
 	cp = short2str(vp->vec[1]);
+    else
+	cp = "%Uu %Ss %E %P %X+%Dk %I+%Oio %Fpf+%Ww";
+    prusage1(fp, cp, 1, r0, r1, e, b);
+}
+#endif
+
+void
+prusage1(FILE *fp, const char *cp, int prec,
+    struct rusage *r0, struct rusage *r1,
+    struct timespec *e, struct timespec *b)
+{
+    long i;
+    time_t t;
+    time_t ms;
+
+    ms = (e->tv_sec - b->tv_sec) * 100 + (e->tv_nsec - b->tv_nsec) / 10000000;
+    t = (r1->ru_utime.tv_sec - r0->ru_utime.tv_sec) * 100 +
+        (r1->ru_utime.tv_usec - r0->ru_utime.tv_usec) / 10000 +
+        (r1->ru_stime.tv_sec - r0->ru_stime.tv_sec) * 100 +
+        (r1->ru_stime.tv_usec - r0->ru_stime.tv_usec) / 10000;
 
     for (; *cp; cp++)
 	if (*cp != '%')
-	    (void) fputc(*cp, cshout);
+	    (void) fputc(*cp, fp);
 	else if (cp[1])
 	    switch (*++cp) {
-
-	    case 'U':		/* user CPU time used */
-		pdeltat(&r1->ru_utime, &r0->ru_utime);
+	    case 'D':		/* (average) unshared data size */
+		(void)fprintf(fp, "%ld", t == 0 ? 0L :
+			(long)((r1->ru_idrss + r1->ru_isrss -
+			 (r0->ru_idrss + r0->ru_isrss)) / t));
 		break;
-
-	    case 'S':		/* system CPU time used */
-		pdeltat(&r1->ru_stime, &r0->ru_stime);
-		break;
-
 	    case 'E':		/* elapsed (wall-clock) time */
-		pcsecs((long) ms);
+		pcsecs(fp, (long) ms);
 		break;
-
+	    case 'F':		/* page faults */
+		(void)fprintf(fp, "%ld", r1->ru_majflt - r0->ru_majflt);
+		break;
+	    case 'I':		/* FS blocks in */
+		(void)fprintf(fp, "%ld", r1->ru_inblock - r0->ru_inblock);
+		break;
+	    case 'K':		/* (average) total data memory used  */
+		(void)fprintf(fp, "%ld", t == 0 ? 0L :
+			(long)(((r1->ru_ixrss + r1->ru_isrss + r1->ru_idrss) -
+			 (r0->ru_ixrss + r0->ru_idrss + r0->ru_isrss)) / t));
+		break;
+	    case 'M':		/* max. Resident Set Size */
+		(void)fprintf(fp, "%ld", r1->ru_maxrss);
+		break;
+	    case 'O':		/* FS blocks out */
+		(void)fprintf(fp, "%ld", r1->ru_oublock - r0->ru_oublock);
+		break;
 	    case 'P':		/* percent time spent running */
 		/* check if it did not run at all */
 		i = (ms == 0) ? 0 : ((long long)t * 1000 / ms);
 		/* nn.n% */
 		(void) fprintf(cshout, "%ld.%01ld%%", i / 10, i % 10);
 		break;
-
+	    case 'R':		/* page reclaims */
+		(void)fprintf(fp, "%ld", r1->ru_minflt - r0->ru_minflt);
+		break;
+	    case 'S':		/* system CPU time used */
+		pdeltat(fp, prec, &r1->ru_stime, &r0->ru_stime);
+		break;
+	    case 'U':		/* user CPU time used */
+		pdeltat(fp, prec, &r1->ru_utime, &r0->ru_utime);
+		break;
 	    case 'W':		/* number of swaps */
 		i = r1->ru_nswap - r0->ru_nswap;
-		(void) fprintf(cshout, "%ld", i);
+		(void)fprintf(fp, "%ld", i);
 		break;
-
 	    case 'X':		/* (average) shared text size */
-		(void) fprintf(cshout, "%ld", t == 0 ? 0L :
-			       (r1->ru_ixrss - r0->ru_ixrss) / t);
+		(void)fprintf(fp, "%ld", t == 0 ? 0L : 
+			       (long)((r1->ru_ixrss - r0->ru_ixrss) / t));
 		break;
-
-	    case 'D':		/* (average) unshared data size */
-		(void) fprintf(cshout, "%ld", t == 0 ? 0L :
-			(r1->ru_idrss + r1->ru_isrss -
-			 (r0->ru_idrss + r0->ru_isrss)) / t);
-		break;
-
-	    case 'K':		/* (average) total data memory used  */
-		(void) fprintf(cshout, "%ld", t == 0 ? 0L :
-			((r1->ru_ixrss + r1->ru_isrss + r1->ru_idrss) -
-			 (r0->ru_ixrss + r0->ru_idrss + r0->ru_isrss)) / t);
-		break;
-
-	    case 'M':		/* max. Resident Set Size */
-		(void) fprintf(cshout, "%ld", r1->ru_maxrss / 2L);
-		break;
-
-	    case 'F':		/* page faults */
-		(void) fprintf(cshout, "%ld", r1->ru_majflt - r0->ru_majflt);
-		break;
-
-	    case 'R':		/* page reclaims */
-		(void) fprintf(cshout, "%ld", r1->ru_minflt - r0->ru_minflt);
-		break;
-
-	    case 'I':		/* FS blocks in */
-		(void) fprintf(cshout, "%ld", r1->ru_inblock - r0->ru_inblock);
-		break;
-
-	    case 'O':		/* FS blocks out */
-		(void) fprintf(cshout, "%ld", r1->ru_oublock - r0->ru_oublock);
-		break;
-
-	    case 'r':		/* socket messages received */
-		(void) fprintf(cshout, "%ld", r1->ru_msgrcv - r0->ru_msgrcv);
-		break;
-
-	    case 's':		/* socket messages sent */
-		(void) fprintf(cshout, "%ld", r1->ru_msgsnd - r0->ru_msgsnd);
-		break;
-
-	    case 'k':		/* number of signals received */
-		(void) fprintf(cshout, "%ld", r1->ru_nsignals-r0->ru_nsignals);
-		break;
-
-	    case 'w':		/* num. voluntary context switches (waits) */
-		(void) fprintf(cshout, "%ld", r1->ru_nvcsw - r0->ru_nvcsw);
-		break;
-
 	    case 'c':		/* num. involuntary context switches */
-		(void) fprintf(cshout, "%ld", r1->ru_nivcsw - r0->ru_nivcsw);
+		(void)fprintf(fp, "%ld", r1->ru_nivcsw - r0->ru_nivcsw);
+		break;
+	    case 'k':		/* number of signals received */
+		(void)fprintf(fp, "%ld", r1->ru_nsignals-r0->ru_nsignals);
+		break;
+	    case 'r':		/* socket messages received */
+		(void)fprintf(fp, "%ld", r1->ru_msgrcv - r0->ru_msgrcv);
+		break;
+	    case 's':		/* socket messages sent */
+		(void)fprintf(fp, "%ld", r1->ru_msgsnd - r0->ru_msgsnd);
+		break;
+	    case 'w':		/* num. voluntary context switches (waits) */
+		(void)fprintf(fp, "%ld", r1->ru_nvcsw - r0->ru_nvcsw);
 		break;
 	    }
-    (void) fputc('\n', cshout);
+    (void)fputc('\n', fp);
 }
 
 static void
-pdeltat(struct timeval *t1, struct timeval *t0)
+pdeltat(FILE *fp, int prec, struct timeval *t1, struct timeval *t0)
 {
     struct timeval td;
 
     timersub(t1, t0, &td);
-    (void) fprintf(cshout, "%ld.%01ld", td.tv_sec, td.tv_usec / 100000);
+    (void)fprintf(fp, "%ld.%0*ld", (long)td.tv_sec,
+	prec, (long)(td.tv_usec / 100000));
 }
 
-#define  P2DIG(i) (void) fprintf(cshout, "%d%d", (i) / 10, (i) % 10)
+#define  P2DIG(fp, i) (void)fprintf(fp, "%ld%ld", (i) / 10, (i) % 10)
 
+#ifndef NOT_CSH
 void
 psecs(long l)
 {
-    int i;
+    long i;
 
     i = l / 3600;
     if (i) {
-	(void) fprintf(cshout, "%d:", i);
+	(void)fprintf(cshout, "%ld:", i);
 	i = l % 3600;
-	P2DIG(i / 60);
+	P2DIG(cshout, i / 60);
 	goto minsec;
     }
     i = l;
-    (void) fprintf(cshout, "%d", i / 60);
+    (void)fprintf(cshout, "%ld", i / 60);
 minsec:
     i %= 60;
-    (void) fputc(':', cshout);
-    P2DIG(i);
+    (void)fputc(':', cshout);
+    P2DIG(cshout, i);
 }
+#endif
 
-void
-pcsecs(long l)			/* PWP: print mm:ss.dd, l is in sec*100 */
+static void
+pcsecs(FILE *fp, long l)	/* PWP: print mm:ss.dd, l is in sec*100 */
 {
-    int i;
+    long i;
 
     i = l / 360000;
     if (i) {
-	(void) fprintf(cshout, "%d:", i);
+	(void)fprintf(fp, "%ld:", i);
 	i = (l % 360000) / 100;
-	P2DIG(i / 60);
+	P2DIG(fp, i / 60);
 	goto minsec;
     }
     i = l / 100;
-    (void) fprintf(cshout, "%d", i / 60);
+    (void)fprintf(fp, "%ld", i / 60);
 minsec:
     i %= 60;
-    (void) fputc(':', cshout);
-    P2DIG(i);
-    (void) fputc('.', cshout);
-    P2DIG((int) (l % 100));
+    (void)fputc(':', fp);
+    P2DIG(fp, i);
+    (void)fputc('.', fp);
+    P2DIG(fp, (l % 100));
 }

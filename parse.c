@@ -1,5 +1,4 @@
-/*	$OpenBSD: parse.c,v 1.9 2009/10/27 23:59:21 deraadt Exp $	*/
-/*	$NetBSD: parse.c,v 1.6 1995/03/21 09:03:10 cgd Exp $	*/
+/* $NetBSD: parse.c,v 1.21 2020/08/09 00:34:21 dholland Exp $ */
 
 /*-
  * Copyright (c) 1980, 1991, 1993
@@ -30,34 +29,37 @@
  * SUCH DAMAGE.
  */
 
+#include <bsd/sys/cdefs.h>
+#ifndef lint
+#if 0
+static char sccsid[] = "@(#)parse.c	8.1 (Berkeley) 5/31/93";
+#else
+__RCSID("$NetBSD: parse.c,v 1.21 2020/08/09 00:34:21 dholland Exp $");
+#endif
+#endif /* not lint */
+
 #include <sys/types.h>
+
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdarg.h>
 
 #include "csh.h"
 #include "extern.h"
 
-static void	 asyntax(struct wordent *, struct wordent *);
-static void	 asyn0(struct wordent *, struct wordent *);
-static void	 asyn3(struct wordent *, struct wordent *);
-static struct wordent
-		*freenod(struct wordent *, struct wordent *);
-static struct command
-		*syn0(struct wordent *, struct wordent *, int);
-static struct command
-		*syn1(struct wordent *, struct wordent *, int);
-static struct command
-		*syn1a(struct wordent *, struct wordent *, int);
-static struct command
-		*syn1b(struct wordent *, struct wordent *, int);
-static struct command
-		*syn2(struct wordent *, struct wordent *, int);
-static struct command
-		*syn3(struct wordent *, struct wordent *, int);
+static void asyntax(struct wordent *, struct wordent *);
+static void asyn0(struct wordent *, struct wordent *);
+static void asyn3(struct wordent *, struct wordent *);
+static struct wordent *freenod(struct wordent *, struct wordent *);
+static struct command *syn0(struct wordent *, struct wordent *, int);
+static struct command *syn1(struct wordent *, struct wordent *, int);
+static struct command *syn1a(struct wordent *, struct wordent *, int);
+static struct command *syn1b(struct wordent *, struct wordent *, int);
+static struct command *syn2(struct wordent *, struct wordent *, int);
+static struct command *syn3(struct wordent *, struct wordent *, int);
 
-#define ALEFT	21		/* max of 20 alias expansions	 */
-#define HLEFT	11		/* max of 10 history expansions	 */
+#define ALEFT 21		/* max of 20 alias expansions	 */
+#define HLEFT 11		/* max of 10 history expansions	 */
 /*
  * Perform aliasing on the word list lex
  * Do a (very rudimentary) parse to separate into commands.
@@ -66,22 +68,23 @@ static struct command
  */
 static int aleft;
 extern int hleft;
+
 void
-alias(struct wordent *lex)
+alias(struct wordent *lexp)
 {
     jmp_buf osetexit;
 
     aleft = ALEFT;
     hleft = HLEFT;
     getexit(osetexit);
-    (void) setexit();
+    (void)setexit();
     if (haderr) {
 	resexit(osetexit);
 	reset();
     }
     if (--aleft == 0)
 	stderror(ERR_ALIASLOOP);
-    asyntax(lex->next, lex);
+    asyntax(lexp->next, lexp);
     resexit(osetexit);
 }
 
@@ -101,26 +104,23 @@ static void
 asyn0(struct wordent *p1, struct wordent *p2)
 {
     struct wordent *p;
-    int l = 0;
+    int l;
 
+    l = 0;
     for (p = p1; p != p2; p = p->next)
 	switch (p->word[0]) {
-
 	case '(':
 	    l++;
 	    continue;
-
 	case ')':
 	    l--;
 	    if (l < 0)
 		stderror(ERR_TOOMANYRP);
 	    continue;
-
 	case '>':
 	    if (p->next != p2 && eq(p->next->word, STRand))
 		p = p->next;
 	    continue;
-
 	case '&':
 	case '|':
 	case ';':
@@ -140,7 +140,7 @@ asyn3(struct wordent *p1, struct wordent *p2)
 {
     struct varent *ap;
     struct wordent alout;
-    bool redid;
+    int redid;
 
     if (p1 == p2)
 	return;
@@ -167,10 +167,11 @@ asyn3(struct wordent *p1, struct wordent *p2)
 	stderror(ERR_OLD);
     }
     if (p1->word[0] && eq(p1->word, alout.next->word)) {
-	Char   *cp = alout.next->word;
+	Char *cp;
 
+	cp = alout.next->word;
 	alout.next->word = Strspl(STRQNULL, cp);
-	xfree((ptr_t) cp);
+	free(cp);
     }
     p1 = freenod(p1, redid ? p2 : p1->next);
     if (alout.next != &alout) {
@@ -178,8 +179,8 @@ asyn3(struct wordent *p1, struct wordent *p2)
 	alout.prev->prev->next = p1->next;
 	alout.next->prev = p1;
 	p1->next = alout.next;
-	xfree((ptr_t) alout.prev->word);
-	xfree((ptr_t) (alout.prev));
+	free(alout.prev->word);
+	free(alout.prev);
     }
     reset();			/* throw! */
 }
@@ -187,12 +188,13 @@ asyn3(struct wordent *p1, struct wordent *p2)
 static struct wordent *
 freenod(struct wordent *p1, struct wordent *p2)
 {
-    struct wordent *retp = p1->prev;
+    struct wordent *retp;
 
+    retp = p1->prev;
     while (p1 != p2) {
-	xfree((ptr_t) p1->word);
+	free(p1->word);
 	p1 = p1->next;
-	xfree((ptr_t) (p1->prev));
+	free(p1->prev);
     }
     retp->next = p2;
     p2->prev = retp;
@@ -212,7 +214,6 @@ freenod(struct wordent *p1, struct wordent *p2)
 struct command *
 syntax(struct wordent *p1, struct wordent *p2, int flags)
 {
-
     while (p1 != p2)
 	if (any(";&\n", p1->word[0]))
 	    p1 = p1->next;
@@ -231,32 +232,27 @@ syn0(struct wordent *p1, struct wordent *p2, int flags)
 {
     struct wordent *p;
     struct command *t, *t1;
-    int     l;
+    int l;
 
     l = 0;
     for (p = p1; p != p2; p = p->next)
 	switch (p->word[0]) {
-
 	case '(':
 	    l++;
 	    continue;
-
 	case ')':
 	    l--;
 	    if (l < 0)
 		seterror(ERR_TOOMANYRP);
 	    continue;
-
 	case '|':
 	    if (p->word[1] == '|')
 		continue;
-	    /* fall into ... */
-
+	    /* FALLTHROUGH */
 	case '>':
 	    if (p->next != p2 && eq(p->next->word, STRand))
 		p = p->next;
 	    continue;
-
 	case '&':
 	    if (l != 0)
 		break;
@@ -266,7 +262,7 @@ syn0(struct wordent *p1, struct wordent *p2, int flags)
 	    if (t1->t_dtyp == NODE_LIST ||
 		t1->t_dtyp == NODE_AND ||
 		t1->t_dtyp == NODE_OR) {
-		t = (struct command *) xcalloc(1, sizeof(*t));
+		t = xcalloc(1, sizeof(*t));
 		t->t_dtyp = NODE_PAREN;
 		t->t_dflg = F_AMPERSAND | F_NOINTERRUPT;
 		t->t_dspr = t1;
@@ -274,7 +270,7 @@ syn0(struct wordent *p1, struct wordent *p2, int flags)
 	    }
 	    else
 		t1->t_dflg |= F_AMPERSAND | F_NOINTERRUPT;
-	    t = (struct command *) xcalloc(1, sizeof(*t));
+	    t = xcalloc(1, sizeof(*t));
 	    t->t_dtyp = NODE_LIST;
 	    t->t_dflg = 0;
 	    t->t_dcar = t1;
@@ -297,25 +293,22 @@ syn1(struct wordent *p1, struct wordent *p2, int flags)
 {
     struct wordent *p;
     struct command *t;
-    int     l;
+    int l;
 
     l = 0;
     for (p = p1; p != p2; p = p->next)
 	switch (p->word[0]) {
-
 	case '(':
 	    l++;
 	    continue;
-
 	case ')':
 	    l--;
 	    continue;
-
 	case ';':
 	case '\n':
 	    if (l != 0)
 		break;
-	    t = (struct command *) xcalloc(1, sizeof(*t));
+	    t = xcalloc(1, sizeof(*t));
 	    t->t_dtyp = NODE_LIST;
 	    t->t_dcar = syn1a(p1, p, flags);
 	    t->t_dcdr = syntax(p->next, p2, flags);
@@ -336,24 +329,22 @@ syn1a(struct wordent *p1, struct wordent *p2, int flags)
 {
     struct wordent *p;
     struct command *t;
-    int l = 0;
+    int l;
 
+    l = 0;
     for (p = p1; p != p2; p = p->next)
 	switch (p->word[0]) {
-
 	case '(':
 	    l++;
 	    continue;
-
 	case ')':
 	    l--;
 	    continue;
-
 	case '|':
 	    if (p->word[1] != '|')
 		continue;
 	    if (l == 0) {
-		t = (struct command *) xcalloc(1, sizeof(*t));
+		t = xcalloc(1, sizeof(*t));
 		t->t_dtyp = NODE_OR;
 		t->t_dcar = syn1b(p1, p, flags);
 		t->t_dcdr = syn1a(p->next, p2, flags);
@@ -375,22 +366,20 @@ syn1b(struct wordent *p1, struct wordent *p2, int flags)
 {
     struct wordent *p;
     struct command *t;
-    int l = 0;
+    int l;
 
+    l = 0;
     for (p = p1; p != p2; p = p->next)
 	switch (p->word[0]) {
-
 	case '(':
 	    l++;
 	    continue;
-
 	case ')':
 	    l--;
 	    continue;
-
 	case '&':
 	    if (p->word[1] == '&' && l == 0) {
-		t = (struct command *) xcalloc(1, sizeof(*t));
+		t = xcalloc(1, sizeof(*t));
 		t->t_dtyp = NODE_AND;
 		t->t_dcar = syn2(p1, p, flags);
 		t->t_dcdr = syn1b(p->next, p2, flags);
@@ -413,24 +402,21 @@ syn2(struct wordent *p1, struct wordent *p2, int flags)
 {
     struct wordent *p, *pn;
     struct command *t;
-    int l = 0;
-    int     f;
+    int f, l;
 
+    l = 0;
     for (p = p1; p != p2; p = p->next)
 	switch (p->word[0]) {
-
 	case '(':
 	    l++;
 	    continue;
-
 	case ')':
 	    l--;
 	    continue;
-
 	case '|':
 	    if (l != 0)
 		continue;
-	    t = (struct command *) xcalloc(1, sizeof(*t));
+	    t = xcalloc(1, sizeof(*t));
 	    f = flags | POUT;
 	    pn = p->next;
 	    if (pn != p2 && pn->word[0] == '&') {
@@ -460,25 +446,22 @@ static char RELPAR[] = {'<', '>', '(', ')', '\0'};
 static struct command *
 syn3(struct wordent *p1, struct wordent *p2, int flags)
 {
-    struct wordent *p;
-    struct wordent *lp, *rp;
+    struct wordent *lp, *p, *rp;
     struct command *t;
-    int l;
-    Char  **av;
-    int     n, c;
-    bool    specp = 0;
+    Char **av;
+    int c, l, n;
+    int specp;
 
+    specp = 0;
     if (p1 != p2) {
 	p = p1;
 again:
 	switch (srchx(p->word)) {
-
 	case T_ELSE:
 	    p = p->next;
 	    if (p != p2)
 		goto again;
 	    break;
-
 	case T_EXIT:
 	case T_FOREACH:
 	case T_IF:
@@ -494,19 +477,16 @@ again:
     l = 0;
     for (p = p1; p != p2; p = p->next)
 	switch (p->word[0]) {
-
 	case '(':
 	    if (specp)
 		n++;
 	    l++;
 	    continue;
-
 	case ')':
 	    if (specp)
 		n++;
 	    l--;
 	    continue;
-
 	case '>':
 	case '<':
 	    if (l != 0) {
@@ -520,7 +500,6 @@ again:
 		continue;
 	    n--;
 	    continue;
-
 	default:
 	    if (!specp && l != 0)
 		continue;
@@ -529,8 +508,9 @@ again:
 	}
     if (n < 0)
 	n = 0;
-    t = (struct command *) xcalloc(1, sizeof(*t));
-    av = (Char **) xcalloc((size_t) (n + 1), sizeof(Char **));
+    t = xcalloc(1, sizeof(*t));
+    /* XXX the cast is needed because n is signed */
+    av = xcalloc((size_t)(n + 1), sizeof(*av));
     t->t_dcom = av;
     n = 0;
     if (p2->word[0] == ')')
@@ -541,7 +521,6 @@ again:
     for (p = p1; p != p2; p = p->next) {
 	c = p->word[0];
 	switch (c) {
-
 	case '(':
 	    if (l == 0) {
 		if (lp != 0 && !specp)
@@ -550,13 +529,11 @@ again:
 	    }
 	    l++;
 	    goto savep;
-
 	case ')':
 	    l--;
 	    if (l == 0)
 		rp = p;
 	    goto savep;
-
 	case '>':
 	    if (l != 0)
 		goto savep;
@@ -585,7 +562,6 @@ again:
 	    else
 		t->t_drit = Strsave(p->word);
 	    continue;
-
 	case '<':
 	    if (l != 0)
 		goto savep;
@@ -607,10 +583,10 @@ again:
 	    else
 		t->t_dlef = Strsave(p->word);
 	    continue;
-
-    savep:
+	savep:
 	    if (!specp)
 		continue;
+	    /* FALLTHROUGH */
 	default:
 	    if (l != 0 && !specp)
 		continue;
@@ -642,20 +618,18 @@ freesyn(struct command *t)
     if (t == 0)
 	return;
     switch (t->t_dtyp) {
-
     case NODE_COMMAND:
 	for (v = t->t_dcom; *v; v++)
-	    xfree((ptr_t) * v);
-	xfree((ptr_t) (t->t_dcom));
-	xfree((ptr_t) t->t_dlef);
-	xfree((ptr_t) t->t_drit);
+	    free(* v);
+	free(t->t_dcom);
+	free(t->t_dlef);
+	free(t->t_drit);
 	break;
     case NODE_PAREN:
 	freesyn(t->t_dspr);
-	xfree((ptr_t) t->t_dlef);
-	xfree((ptr_t) t->t_drit);
+	free(t->t_dlef);
+	free(t->t_drit);
 	break;
-
     case NODE_AND:
     case NODE_OR:
     case NODE_PIPE:
@@ -663,5 +637,5 @@ freesyn(struct command *t)
 	freesyn(t->t_dcar), freesyn(t->t_dcdr);
 	break;
     }
-    xfree((ptr_t) t);
+    free(t);
 }
