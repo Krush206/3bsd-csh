@@ -553,4 +553,11 @@ extern History *hi;
 #endif
 extern int editing;
 
+/* Function variable(s). */
+extern int execfunc;
+extern struct funcargs {
+    Char **v;
+    struct command *t;
+} *fargv;
+
 #endif /* !_CSH_H_ */
