@@ -28,10 +28,21 @@ DPSRCS+=	errnum.h const.h
 CLEANFILES+=	errnum.h const.h
 
 all:
+	(\
+	echo "#ifndef _PATHNAMES_H_" ;\
+	echo "#define _PATHNAMES_H_" ;\
+	echo "#define _PATH_BIN \"${PREFIX}/bin\"" ;\
+	echo "#define _PATH_DOTCSHRC \"${PREFIX}/etc/csh.cshrc\"" ;\
+	echo "#define _PATH_DOTLOGIN \"${PREFIX}/etc/csh.login\"" ;\
+	echo "#define _PATH_DOTLOGOUT \"${PREFIX}/etc/csh.logout\"" ;\
+	echo "#define _PATH_LOGIN \"${PREFIX}/usr/bin/login\"" ;\
+	echo "#define _PATH_USRBIN \"${PREFIX}/usr/bin\"" ;\
+	echo "#endif /* !_PATHNAMES_H_ */" ;\
+	) > pathnames.h
 	${CC} -o ${PROG} ${CFLAGS} ${SRCS} -lbsd -ledit -landroid-glob
 
 install:
-	install csh -Dm755 @TERMUX_PREFIX@/bin/csh
+	install csh -Dm755 ${PREFIX}/bin/${PROG}
 
 errnum.h: err.c
 	rm -f $@
