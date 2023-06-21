@@ -46,7 +46,7 @@ __RCSID("$NetBSD: proc.c,v 1.42 2021/09/16 19:34:21 christos Exp $");
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+#include <bsd/unistd.h>
 
 #include "csh.h"
 #include "dir.h"
@@ -847,7 +847,11 @@ dojobs(Char **v, struct command *t)
 	    if (eq(*v, STRml)) {
 		flag |= FANCY | JOBDIR;
 	    } else if (eq(*v, STRmZ)) {
-		perror("-Z unavailable on Android.");
+		if (v[1] && v[1][0]) {
+		    setproctitle("%s", short2str(v[1]));
+		} else {
+		    setproctitle(NULL);
+		}
 		return;
 	    } else {
 		stderror(ERR_JOBS);
