@@ -1459,7 +1459,7 @@ void
 dofunction(Char **v, struct command *t)
 {
     if (!ffile)
-	stderror(ERR_DOLFUNC, "Functions are only supported for scripts.");
+	stderror(ERR_DOLFUNC);
 
     {
 	int i, j;
@@ -1479,9 +1479,15 @@ dofunction(Char **v, struct command *t)
 	Strcpy(vh[1], ffile);
 	*vh = xmalloc(Strlen(*v) + 1);
 	Strcpy(*vh, *v);
-	execfunc = 1;
 
-	fargv = malloc(sizeof *fargv);
+	if (fargv) {
+	    fargv->next = malloc(sizeof *fargv);
+	    fargv->next->prev = fargv;
+	    fargv = fargv->next;
+	} else {
+	    fargv = malloc(sizeof *fargv);
+	    fargv->prev = NULL;
+	}
 
 	dosource(fargv->v = vh, fargv->t = t);
     }

@@ -181,8 +181,7 @@ int nverbose = 0;
 int prompt = 1;
 int quitit = 0;
 int reenter = 0;
-int execfunc = 0;
-struct funcargs *fargv;
+struct funcargs *fargv = NULL;
 
 extern char **environ;
 
@@ -1091,9 +1090,9 @@ process(int catch)
     getexit(osetexit);
 
     /* If this is a function, setup STRargv and invoke goto. */
-    if (execfunc) {
-	setq(STRargv, &fnode->v[3], &shvhed);
-	dogoto(&fnode->v[1], fnode->t);
+    if (fargv) {
+	setq(STRargv, &fargv->v[3], &shvhed);
+	dogoto(&fargv->v[1], fargv->t);
     }
 
     for (;;) {
@@ -1226,11 +1225,17 @@ process(int catch)
 	freesyn(savet), savet = NULL;
     }
 
-    if (execfunc) {
+    if (fargv) {
 	/* Reset STRargv on function exit. */
 	set(STRargv, NULL);
-	free(fargv);
-	execfunc = 0;
+
+	if (fargv->prev)
+	{
+	    fargv = fargv->prev;
+	    free(fargv->next);
+	}
+	else
+	    free(fargv);
     }
 
     resexit(osetexit);
