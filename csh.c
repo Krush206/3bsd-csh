@@ -1092,7 +1092,7 @@ process(int catch)
     /* If this is a function, setup STRargv and invoke goto. */
     if (fargv) {
 	int funcdelim = 0;
-	Char aword[BUFSIZE],
+	Char aword[BUFSIZE] = { 0 },
 	     funcexit[] = { 'e', 'x', 'i', 't', 0 },
 	     funcmain[] = { 'm', 'a', 'i', 'n', 0 };
 	Sgoal = funcmain;
