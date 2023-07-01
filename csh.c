@@ -1098,18 +1098,19 @@ process(int catch)
 	Sgoal = funcmain;
 	Stype = (Char) T_GOTO;
 
-	while (!fargv->prev && !funcdelim) {
-	    getword(aword);
+	if (!fargv->prev)
+	    while (!funcdelim) {
+		getword(aword);
 
-	    if (lastchr(aword) == ':') {
-		setname(vis_str(Sgoal));
-		stderror(ERR_NAME | ERR_NOTFOUND, short2str(funcexit));
+		if (lastchr(aword) == ':') {
+		    setname(vis_str(Sgoal));
+		    stderror(ERR_NAME | ERR_NOTFOUND, short2str(funcexit));
+		}
+		else if (eq(aword, funcexit))
+		    funcdelim = 1;
+
+		getword(NULL);
 	    }
-	    else if (eq(aword, funcexit))
-		funcdelim = 1;
-
-	    getword(NULL);
-	}
 
 	setq(STRargv, &fargv->v[3], &shvhed);
 	dogoto(&fargv->v[1], fargv->t);
