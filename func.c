@@ -62,7 +62,6 @@ static void reexecute(struct command *);
 static void preread(void);
 static void doagain(void);
 static void search(int, int, Char *);
-static int getword(Char *);
 static int keyword(Char *);
 static void toend(void);
 static void xecho(int, Char **);
@@ -585,8 +584,7 @@ srchx(Char *cp)
     return (-1);
 }
 
-static Char Stype;
-static Char *Sgoal;
+Char Stype, *Sgoal;
 
 /*VARARGS2*/
 static void
@@ -699,7 +697,7 @@ wpfree(struct whyle *wp)
     free(wp);
 }
 
-static int
+int
 getword(Char *wp)
 {
     int c, d, found, kwd;
@@ -777,6 +775,9 @@ past:
     case T_SWITCH:
 	stderror(ERR_NAME | ERR_NOTFOUND, "endsw");
 	/* NOTREACHED */
+    case T_EXIT:
+	setname(vis_str(Sgoal));
+	stderror(ERR_NAME | ERR_NOTFOUND, "exit");
     }
     return (0);
 }

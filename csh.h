@@ -553,12 +553,14 @@ extern History *hi;
 #endif
 extern int editing;
 
-/* Function variable(s). */
+/* Function variable(s) and function(s). */
+extern Char *Sgoal, Stype;
 extern struct funcargs {
     Char **v;
     struct command *t;
     struct funcargs *prev,
 		    *next;
 } *fargv;
+extern int getword(Char *);
 
 #endif /* !_CSH_H_ */
