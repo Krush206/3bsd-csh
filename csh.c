@@ -1089,8 +1089,53 @@ process(int catch)
 
     /* If this is a function, setup STRargv and invoke goto. */
     if (fargv) {
+	int funcdelim = 0;
+	Char aword[BUFSIZE],
+	     funcexit[] = { 'e', 'x', 'i', 't', 0 },
+	     funcmain[] = { 'm', 'a', 'i', 'n', 0 };
+	Sgoal = funcmain;
+	Stype = (Char) T_GOTO;
+
+	while (!fargv->prev && !funcdelim) {
+	    getword(aword);
+
+	    if (lastchr(aword) == ':') {
+		setname(vis_str(Sgoal));
+		stderror(ERR_NAME | ERR_NOTFOUND, short2str(funcexit));
+	    }
+	    else if (eq(aword, funcexit))
+		funcdelim = 1;
+
+	    getword(NULL);
+	}
+
 	setq(STRargv, &fargv->v[3], &shvhed);
 	dogoto(&fargv->v[1], fargv->t);
+
+	{
+	    struct Ain a;
+
+	    Sgoal = fargv->v[2];
+	    Stype = (Char) T_EXIT;
+	    a.type = F_SEEK;
+	    btell(&a);
+	    aword[0] = funcdelim = 0;
+
+	    while (!funcdelim) {
+		getword(aword);
+
+		if (lastchr(aword) == ':') {
+		    setname(vis_str(fargv->v[2]));
+		    stderror(ERR_NAME | ERR_NOTFOUND, short2str(funcexit));
+		}
+		else if (eq(aword, funcexit))
+		    funcdelim = 1;
+
+		getword(NULL);
+	    }
+
+	    bseek(&a);
+	}
     }
 
     for (;;) {
