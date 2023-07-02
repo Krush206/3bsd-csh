@@ -1102,7 +1102,7 @@ process(int catch)
 	    while (!funcdelim) {
 		getword(aword);
 
-		if (lastchr(aword) == ':') {
+		if (aword[0] != ':' && lastchr(aword) == ':') {
 		    setname(vis_str(Sgoal));
 		    stderror(ERR_NAME | ERR_NOTFOUND, short2str(funcexit));
 		}
@@ -1127,7 +1127,7 @@ process(int catch)
 	    while (!funcdelim) {
 		getword(aword);
 
-		if (lastchr(aword) == ':') {
+		if (aword[0] != ':' && lastchr(aword) == ':') {
 		    setname(vis_str(fargv->v[2]));
 		    stderror(ERR_NAME | ERR_NOTFOUND, short2str(funcexit));
 		}
