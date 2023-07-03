@@ -786,6 +786,11 @@ srcunit(int unit, int onlyown, int hflg)
     OHIST = HIST;
     otell = cantell;
 
+    if (fargv) {
+	(void) dcopy(0, FOLDSTD);
+	(void) dcopy(1, FSHOUT);
+	(void) dcopy(2, FSHERR);
+    }
     if (unit < 0)
 	return;
     if (didfds)
@@ -1100,7 +1105,7 @@ process(int catch)
 
 	if (!fargv->prev)
 	    while (!funcdelim) {
-		getword(aword);
+		(void) getword(aword);
 
 		if (aword[0] != ':' && lastchr(aword) == ':') {
 		    setname(vis_str(Sgoal));
@@ -1109,7 +1114,7 @@ process(int catch)
 		else if (eq(aword, funcexit))
 		    funcdelim = 1;
 
-		getword(NULL);
+		(void) getword(NULL);
 	    }
 
 	setq(STRargv, &fargv->v[3], &shvhed);
@@ -1125,7 +1130,7 @@ process(int catch)
 	    aword[0] = funcdelim = 0;
 
 	    while (!funcdelim) {
-		getword(aword);
+		(void) getword(aword);
 
 		if (aword[0] != ':' && lastchr(aword) == ':') {
 		    setname(vis_str(fargv->v[2]));
@@ -1134,7 +1139,7 @@ process(int catch)
 		else if (eq(aword, funcexit))
 		    funcdelim = 1;
 
-		getword(NULL);
+		(void) getword(NULL);
 	    }
 
 	    bseek(&a);
