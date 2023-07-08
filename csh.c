@@ -1098,7 +1098,7 @@ process(int catch)
 	Char aword[BUFSIZE] = { 0 },
 	     funcexit[] = { 'e', 'x', 'i', 't', 0 },
 	     funcmain[] = { 'm', 'a', 'i', 'n', 0 };
-	Sgoal = funcmain;
+	Sgoal = fargv->v[2];
 	Stype = (Char) T_GOTO;
 
 	if (!fargv->prev)
@@ -1106,7 +1106,7 @@ process(int catch)
 		(void) getword(aword);
 
 		if (aword[0] != ':' && lastchr(aword) == ':') {
-		    setname(vis_str(Sgoal));
+		    setname(vis_str(funcmain));
 		    stderror(ERR_NAME | ERR_NOTFOUND, short2str(funcexit));
 		}
 		else if (eq(aword, funcexit))
@@ -1121,7 +1121,6 @@ process(int catch)
 	{
 	    struct Ain a;
 
-	    Sgoal = fargv->v[2];
 	    Stype = (Char) T_EXIT;
 	    a.type = F_SEEK;
 	    btell(&a);
@@ -1131,7 +1130,7 @@ process(int catch)
 		(void) getword(aword);
 
 		if (aword[0] != ':' && lastchr(aword) == ':') {
-		    setname(vis_str(fargv->v[2]));
+		    setname(vis_str(Sgoal));
 		    stderror(ERR_NAME | ERR_NOTFOUND, short2str(funcexit));
 		}
 		else if (eq(aword, funcexit))
