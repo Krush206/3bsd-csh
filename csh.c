@@ -1094,7 +1094,12 @@ process(int catch)
     savet = NULL;
     getexit(osetexit);
 
-    /* If this is a function, setup STRargv and invoke goto. */
+    /* Functions must have an exit to their end.
+     * if (!fargv->prev) is only true if this is a first function call.
+     * First seek for an exit before jumping to the label,
+     * then seek for an exit on the requested label.
+     * Function arguments are passed to STRargv.
+     * STRargv is reset after the function is done. */
     if (fargv) {
 	int funcdelim = 0;
 	Char aword[BUFSIZE] = { 0 },
@@ -1273,19 +1278,6 @@ process(int catch)
 	 */
 	freelex(&paraml);
 	freesyn(savet), savet = NULL;
-    }
-
-    if (fargv) {
-	/* Reset STRargv on function exit. */
-	set(STRargv, NULL);
-
-	if (fargv->prev)
-	{
-	    fargv = fargv->prev;
-	    free(fargv->next);
-	}
-	else
-	    free(fargv);
     }
 
     resexit(osetexit);

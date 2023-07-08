@@ -1491,5 +1491,13 @@ dofunction(Char **v, struct command *t)
 	}
 
 	dosource(fargv->v = vh, fargv->t = t);
+	/* Reset STRargv on function exit. */
+	set(STRargv, NULL);
+
+	if (fargv->prev) {
+	    fargv = fargv->prev;
+	    free(fargv->next);
+	} else
+	    free(fargv);
     }
 }
