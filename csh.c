@@ -842,8 +842,65 @@ srcunit(int unit, int onlyown, int hflg)
 	(void)sigprocmask(SIG_SETMASK, &osigset, NULL);
     settell();
 
-    if ((my_reenter = setexit()) == 0)
+    if ((my_reenter = setexit()) == 0) {
+	/* Functions must have an exit to their end.
+	 * if (!fargv->prev) is only true if this is a first function call.
+	 * First seek for an exit before jumping to the label,
+	 * then seek for an exit on the requested label.
+	 * Function arguments are passed to STRargv.
+	 * STRargv is reset after the function is done. */
+	if (fargv) {
+	    int funcdelim = 0;
+	    Char aword[BUFSIZE] = { 0 },
+		 funcexit[] = { 'e', 'x', 'i', 't', 0 },
+		 funcmain[] = { 'm', 'a', 'i', 'n', 0 };
+	    Sgoal = fargv->v[2];
+	    Stype = (Char) T_GOTO;
+
+	    if (!fargv->prev)
+		while (!funcdelim) {
+		    (void) getword(aword);
+
+		    if (aword[0] != ':' && lastchr(aword) == ':') {
+			setname(vis_str(funcmain));
+			stderror(ERR_NAME | ERR_NOTFOUND, short2str(funcexit));
+		    }
+		    else if (eq(aword, funcexit))
+			funcdelim = 1;
+
+		    (void) getword(NULL);
+		}
+
+	    setq(STRargv, &fargv->v[3], &shvhed);
+	    dogoto(&fargv->v[1], fargv->t);
+
+	    {
+		struct Ain a;
+
+		Stype = (Char) T_EXIT;
+		a.type = F_SEEK;
+		btell(&a);
+		aword[0] = funcdelim = 0;
+
+		while (!funcdelim) {
+		    (void) getword(aword);
+
+		    if (aword[0] != ':' && lastchr(aword) == ':') {
+			setname(vis_str(Sgoal));
+			stderror(ERR_NAME | ERR_NOTFOUND, short2str(funcexit));
+		    }
+		    else if (eq(aword, funcexit))
+			funcdelim = 1;
+
+		    (void) getword(NULL);
+		}
+
+		bseek(&a);
+	    }
+	}
+
 	process(0);				/* 0 -> blow away on errors */
+    }
 
     if (setintr)
 	(void)sigprocmask(SIG_SETMASK, &osigset, NULL);
@@ -1093,62 +1150,6 @@ process(int catch)
     t = savet;    
     savet = NULL;
     getexit(osetexit);
-
-    /* Functions must have an exit to their end.
-     * if (!fargv->prev) is only true if this is a first function call.
-     * First seek for an exit before jumping to the label,
-     * then seek for an exit on the requested label.
-     * Function arguments are passed to STRargv.
-     * STRargv is reset after the function is done. */
-    if (fargv) {
-	int funcdelim = 0;
-	Char aword[BUFSIZE] = { 0 },
-	     funcexit[] = { 'e', 'x', 'i', 't', 0 },
-	     funcmain[] = { 'm', 'a', 'i', 'n', 0 };
-	Sgoal = fargv->v[2];
-	Stype = (Char) T_GOTO;
-
-	if (!fargv->prev)
-	    while (!funcdelim) {
-		(void) getword(aword);
-
-		if (aword[0] != ':' && lastchr(aword) == ':') {
-		    setname(vis_str(funcmain));
-		    stderror(ERR_NAME | ERR_NOTFOUND, short2str(funcexit));
-		}
-		else if (eq(aword, funcexit))
-		    funcdelim = 1;
-
-		(void) getword(NULL);
-	    }
-
-	setq(STRargv, &fargv->v[3], &shvhed);
-	dogoto(&fargv->v[1], fargv->t);
-
-	{
-	    struct Ain a;
-
-	    Stype = (Char) T_EXIT;
-	    a.type = F_SEEK;
-	    btell(&a);
-	    aword[0] = funcdelim = 0;
-
-	    while (!funcdelim) {
-		(void) getword(aword);
-
-		if (aword[0] != ':' && lastchr(aword) == ':') {
-		    setname(vis_str(Sgoal));
-		    stderror(ERR_NAME | ERR_NOTFOUND, short2str(funcexit));
-		}
-		else if (eq(aword, funcexit))
-		    funcdelim = 1;
-
-		(void) getword(NULL);
-	    }
-
-	    bseek(&a);
-	}
-    }
 
     for (;;) {
 	pendjob();
