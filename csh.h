@@ -563,4 +563,6 @@ extern struct funcargs {
 } *fargv;
 extern int getword(Char *);
 
+#define __UNCONST(a)      ((void *)(unsigned long)(const void *)(a))
+#define MAXNAMLEN NAME_MAX
 #endif /* !_CSH_H_ */

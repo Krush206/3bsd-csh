@@ -29,8 +29,6 @@
  * SUCH DAMAGE.
  */
 
-#define __UNCONST(a)	((void *)(unsigned long)(const void *)(a))
-
 #include <sys/cdefs.h>
 #ifndef lint
 #if 0
