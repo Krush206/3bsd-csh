@@ -560,6 +560,7 @@ extern struct funcargs {
     struct command *t;
     struct funcargs *prev,
 		    *next;
+    int eof;
 } *fargv;
 extern int getword(Char *);
 

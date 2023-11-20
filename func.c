@@ -776,6 +776,8 @@ past:
 	stderror(ERR_NAME | ERR_NOTFOUND, "endsw");
 	/* NOTREACHED */
     case T_EXIT:
+	if (fargv->eof)
+	    return (intptr_t) &fargv;
 	setname(vis_str(Sgoal));
 	stderror(ERR_NAME | ERR_NOTFOUND, "exit");
     }
