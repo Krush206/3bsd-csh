@@ -843,30 +843,52 @@ srcunit(int unit, int onlyown, int hflg)
     if ((my_reenter = setexit()) == 0) {
 	/* Functions must have an exit to their end.
 	 * if (!fargv->prev) is only true if this is a first function call.
-	 * First seek for an exit before jumping to the label,
-	 * then seek for an exit on the requested label.
+	 * First seek for an ending exit before jumping to the label,
+	 * then seek for an ending exit on the requested label.
 	 * Function arguments are passed to STRargv.
 	 * STRargv is reset after the function is done. */
 	if (fargv) {
-	    int funcdelim = 0;
-	    Char aword[BUFSIZE] = { 0 },
+	    Char aword[BUFSIZE],
 		 funcexit[] = { 'e', 'x', 'i', 't', 0 },
 		 funcmain[] = { 'm', 'a', 'i', 'n', 0 };
 	    Sgoal = fargv->v[2];
 	    Stype = (Char) T_GOTO;
+	    fargv->eof = 0;
 
 	    if (!fargv->prev)
-		while (!funcdelim) {
+		while (1) {
+		    aword[0] = 0;
 		    (void) getword(aword);
+		    if (eq(aword, funcexit)) {
+			int last = 1;
 
+			while (1) {
+			    do {
+				aword[0] = 0;
+				(void) getword(NULL);
+				(void) getword(aword);
+			    } while (!aword[0]);
+			    if (aword[0] != ':' && lastchr(aword) == ':') {
+				if (!last) {
+				    setname(vis_str(Sgoal));
+				    stderror(ERR_NAME | ERR_NOTFOUND, short2str(funcexit));
+				}
+				break;
+			    }
+			    if (!eq(aword, funcexit)) {
+				last = 0;
+				continue;
+			    }
+			    last = 1;
+			}
+
+			break;
+		    }
 		    if (aword[0] != ':' && lastchr(aword) == ':') {
 			setname(vis_str(funcmain));
 			stderror(ERR_NAME | ERR_NOTFOUND, short2str(funcexit));
 		    }
-		    else if (eq(aword, funcexit))
-			funcdelim = 1;
-
-		    (void) getword(NULL);
+		    getword(NULL);
 		}
 
 	    setq(STRargv, &fargv->v[3], &shvhed);
@@ -878,18 +900,50 @@ srcunit(int unit, int onlyown, int hflg)
 		Stype = (Char) T_EXIT;
 		a.type = F_SEEK;
 		btell(&a);
-		aword[0] = funcdelim = 0;
 
-		while (!funcdelim) {
+		while (1) {
+		    aword[0] = 0;
 		    (void) getword(aword);
+		    if (eq(aword, funcexit)) {
+			int last = 1, eof = 0;
 
+			fargv->eof = 1;
+			while (1) {
+			    do {
+				aword[0] = 0;
+				(void) getword(NULL);
+				if ((intptr_t) getword(aword) == (intptr_t) &fargv) {
+				    eof = 1;
+				    break;
+				}
+			    } while (!aword[0]);
+			    if (eof) {
+				if (!last) {
+				    setname(vis_str(Sgoal));
+				    stderror(ERR_NAME | ERR_NOTFOUND, short2str(funcexit));
+				}
+				break;
+			    }
+			    if (aword[0] != ':' && lastchr(aword) == ':') {
+				if (!last) {
+				    setname(vis_str(Sgoal));
+				    stderror(ERR_NAME | ERR_NOTFOUND, short2str(funcexit));
+				}
+				break;
+			    }
+			    if (!eq(aword, funcexit)) {
+				last = 0;
+				continue;
+			    }
+			    last = 1;
+			}
+
+			break;
+		    }
 		    if (aword[0] != ':' && lastchr(aword) == ':') {
 			setname(vis_str(Sgoal));
 			stderror(ERR_NAME | ERR_NOTFOUND, short2str(funcexit));
 		    }
-		    else if (eq(aword, funcexit))
-			funcdelim = 1;
-
 		    (void) getword(NULL);
 		}
 
