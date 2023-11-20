@@ -870,7 +870,7 @@ srcunit(int unit, int onlyown, int hflg)
 			    } while (!aword[0]);
 			    if (aword[0] != ':' && lastchr(aword) == ':') {
 				if (!last) {
-				    setname(vis_str(Sgoal));
+				    setname(vis_str(funcmain));
 				    stderror(ERR_NAME | ERR_NOTFOUND, short2str(funcexit));
 				}
 				break;
