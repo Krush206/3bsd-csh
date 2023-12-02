@@ -1462,7 +1462,7 @@ void
 dofunction(Char **v, struct command *t)
 {
     if (!ffile)
-	stderror(ERR_DOLFUNC);
+	stderror(ERR_FUNC);
 
     {
 	int i, j;
