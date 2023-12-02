@@ -1233,6 +1233,29 @@ When this command is read from the terminal, the loop is read once
 prompting with `?' before any statements in the loop are executed.
 If you make a mistake typing in a loop at the terminal you can rub it out.
 .Pp
+.It Ic function Ar label Xo
+.Op Ar arg
+\&...
+.Xc
+.Ar label
+is a
+.Ic goto
+label. The shell recurses the current script,
+searches for and continues execution after a line of the form
+.Sq Ar label Ns No \&: Ns
+\&.
+.Ar arg
+is a list of arguments to be passed to
+.Ic argv Ns No \&.
+Use outside a label is labeled
+.Ar main Ns No \&.
+It's an error
+.Sq Ar label Ns No \&:
+and
+.Ar main
+not contain an ending
+.Ic exit Ns No \&.
+.Pp
 .It Ic glob Ar wordlist
 Like
 .Ic echo
