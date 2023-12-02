@@ -1497,7 +1497,9 @@ dofunction(Char **v, struct command *t)
 	if (fargv->prev) {
 	    fargv = fargv->prev;
 	    free(fargv->next);
-	} else
+	} else {
 	    free(fargv);
+	    fargv = NULL;
+	}
     }
 }
