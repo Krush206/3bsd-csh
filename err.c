@@ -275,7 +275,7 @@ static const char *errorlist[] =
     "Malformed file inquiry",
 #define ERR_SELOVFL	109
     "Selector overflow",
-#define ERR_DOLFUNC	110
+#define ERR_FUNC	110
     "Functions are only supported for scripts",
 #define ERR_INVALID	111
     "Invalid Error"
