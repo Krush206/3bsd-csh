@@ -557,11 +557,11 @@ extern int editing;
 extern Char *Sgoal, Stype;
 extern struct funcargs {
     Char **v;
-    struct command *t;
+    int eof;
     struct funcargs *prev,
 		    *next;
-    int eof;
 } *fargv;
 extern int getword(Char *);
+extern int srcfile(const char *, int, int);
 
 #endif /* !_CSH_H_ */
