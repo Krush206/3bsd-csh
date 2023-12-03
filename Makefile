@@ -28,7 +28,7 @@ MLINKS=	csh.1 limit.1 csh.1 alias.1 csh.1 bg.1 csh.1 dirs.1 csh.1 fg.1 \
 DPSRCS+=	errnum.h const.h
 CLEANFILES+=	errnum.h const.h
 
-all:
+all: const.h
 	${CC} -o ${PROG} ${CFLAGS} ${SRCS} -lbsd -ledit
 
 install:
