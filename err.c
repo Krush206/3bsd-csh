@@ -49,7 +49,7 @@ __RCSID("$NetBSD: err.c,v 1.25 2022/04/08 10:17:52 andvar Exp $");
 
 char *seterr = NULL;	/* Holds last error if there was one */
 
-#define ERR_FLAGS	0xf0000000
+#define ERR_FLAGS	((int)0xf0000000)
 #define ERR_NAME	0x10000000
 #define ERR_SILENT	0x20000000
 #define ERR_OLD		0x40000000
