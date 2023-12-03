@@ -557,12 +557,12 @@ extern int editing;
 extern Char *Sgoal, Stype;
 extern struct funcargs {
     Char **v;
-    struct command *t;
+    int eof;
     struct funcargs *prev,
 		    *next;
-    int eof;
 } *fargv;
 extern int getword(Char *);
+extern int srcfile(const char *, int, int);
 
 #define __UNCONST(a)      ((void *)(unsigned long)(const void *)(a))
 #define MAXNAMLEN NAME_MAX
