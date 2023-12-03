@@ -190,7 +190,6 @@ static off_t seekf(void *, off_t, int);
 static ssize_t writef(void *, const void *, size_t);
 static int closef(void *);
 static int srccat(Char *, Char *);
-static int srcfile(const char *, int, int);
 __dead static void phup(int);
 static void srcunit(int, int, int);
 static void mailchk(void);
@@ -737,7 +736,7 @@ srccat(Char *cp, Char *dp)
 /*
  * Source to a file putting the file descriptor in a safe place (> 2).
  */
-static int
+int
 srcfile(const char *f, int onlyown, int flag)
 {
     int unit;
@@ -786,11 +785,9 @@ srcunit(int unit, int onlyown, int hflg)
     OHIST = HIST;
     otell = cantell;
 
-    if (fargv) {
-	(void) dcopy(0, FOLDSTD);
-	(void) dcopy(1, FSHOUT);
-	(void) dcopy(2, FSHERR);
-    }
+    (void) dcopy(0, FOLDSTD);
+    (void) dcopy(1, FSHOUT);
+    (void) dcopy(2, FSHERR);
     if (unit < 0)
 	return;
     if (didfds)
@@ -853,7 +850,7 @@ srcunit(int unit, int onlyown, int hflg)
 	    Char aword[BUFSIZE],
 		 funcexit[] = { 'e', 'x', 'i', 't', 0 },
 		 funcmain[] = { 'm', 'a', 'i', 'n', 0 };
-	    Sgoal = fargv->v[2];
+	    Sgoal = fargv->v[0];
 	    Stype = (Char) T_GOTO;
 	    fargv->eof = 0;
 
@@ -893,8 +890,8 @@ srcunit(int unit, int onlyown, int hflg)
 		    getword(NULL);
 		}
 
-	    setq(STRargv, &fargv->v[3], &shvhed);
-	    dogoto(&fargv->v[1], fargv->t);
+	    setq(STRargv, &fargv->v[1], &shvhed);
+	    gotolab(fargv->v[0]);
 
 	    {
 		struct Ain a;
