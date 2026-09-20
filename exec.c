@@ -29,7 +29,11 @@
  * SUCH DAMAGE.
  */
 
+#ifdef __linux__
+#include <bsd/sys/cdefs.h>
+#else
 #include <sys/cdefs.h>
+#endif
 #ifndef lint
 #if 0
 static char sccsid[] = "@(#)exec.c	8.3 (Berkeley) 5/23/95";
@@ -99,7 +103,7 @@ static int hits, misses;
 /* Dummy search path for just absolute search when no path */
 static Char *justabs[] = {STRNULL, 0};
 
-static void pexerr(void) __dead;
+static void pexerr(void) __dead2;
 static void texec(Char *, Char **);
 static int hashname(Char *);
 static int tellmewhat(struct wordent *, Char *);
@@ -169,8 +173,8 @@ doexec(Char **v, struct command *t)
 
     blkfree(t->t_dcom);
     t->t_dcom = blkspl(pv, av);
-    free(pv);
-    free(av);
+    xfree(pv);
+    xfree(av);
     av = t->t_dcom;
     trim(av);
 
@@ -226,7 +230,7 @@ doexec(Char **v, struct command *t)
 	    Vdp = dp;
 	    texec(dp, av);
 	    Vdp = 0;
-	    free(dp);
+	    xfree(dp);
 	}
 	misses++;
 cont:
@@ -235,7 +239,7 @@ cont:
     } while (*pv);
     hits--;
     Vsav = 0;
-    free(sav);
+    xfree(sav);
     pexerr();
     /* NOTREACHED */
 }
@@ -247,7 +251,7 @@ pexerr(void)
     if (expath) {
 	setname(vis_str(expath));
 	Vexpath = 0;
-	free(expath);
+	xfree(expath);
 	expath = 0;
     }
     else
@@ -330,7 +334,7 @@ texec(Char *sf, Char **st)
 	/* The order for the conversions is significant */
 	t = short2blk(st);
 	f = short2str(sf);
-	free(st);
+	xfree(st);
 	Vt = t;
 	(void)execve(f, t, environ);
 	Vt = 0;
@@ -348,7 +352,7 @@ texec(Char *sf, Char **st)
 	if (exerr == 0) {
 	    exerr = strerror(errno);
 	    if (expath)
-		free(expath);
+		xfree(expath);
 	    expath = Strsave(sf);
 	    Vexpath = expath;
 	}
@@ -359,7 +363,7 @@ texec(Char *sf, Char **st)
 void
 execash(Char **t, struct command *kp)
 {
-    jmp_buf osetexit;
+    jmp_buf_t osetexit;
     sig_t osigint, osigquit, osigterm;
     int my_reenter, odidfds, oOLDSTD, oSHERR, oSHIN, oSHOUT;
     int saveDIAG, saveIN, saveOUT, saveSTD;
@@ -389,7 +393,7 @@ execash(Char **t, struct command *kp)
 
     lshift(kp->t_dcom, 1);
 
-    getexit(osetexit);
+    getexit(&osetexit);
 
     if ((my_reenter = setexit()) == 0) {
 	SHIN = dcopy(0, -1);
@@ -414,7 +418,7 @@ execash(Char **t, struct command *kp)
     SHERR = dmove(saveDIAG, oSHERR);
     OLDSTD = dmove(saveSTD, oOLDSTD);
 
-    resexit(osetexit);
+    resexit(&osetexit);
     if (my_reenter)
 	stderror(ERR_SILENT);
 }
@@ -531,13 +535,13 @@ iscommand(Char *name)
 	}
 	if (pv[0][0] == 0 || eq(pv[0], STRdot)) {	/* don't make ./xxx */
 	    if (executable(NULL, name, 0)) {
-		free(sav);
+		xfree(sav);
 		return i + 1;
 	    }
 	}
 	else {
 	    if (executable(*pv, sav, 0)) {
-		free(sav);
+		xfree(sav);
 		return i + 1;
 	    }
 	}
@@ -545,7 +549,7 @@ cont:
 	pv++;
 	i++;
     } while (*pv);
-    free(sav);
+    xfree(sav);
     return 0;
 }
 
@@ -714,7 +718,7 @@ tellmewhat(struct wordent *lexp, Char *str)
 	    if (!slash) {
 		sp->word = Strspl(STRdotsl, sp->word);
 		prlex(cshout, lexp);
-		free(sp->word);
+		xfree(sp->word);
 	    }
 	    else
 		prlex(cshout, lexp);
@@ -722,12 +726,12 @@ tellmewhat(struct wordent *lexp, Char *str)
 	else {
 	    s1 = Strspl(*pv, STRslash);
 	    sp->word = Strspl(s1, sp->word);
-	    free(s1);
+	    xfree(s1);
 	    if (str == NULL)
 		prlex(cshout, lexp);
 	    else
 		(void)Strcpy(str, sp->word);
-	    free(sp->word);
+	    xfree(sp->word);
 	}
 	found = 1;
     }
@@ -743,6 +747,6 @@ tellmewhat(struct wordent *lexp, Char *str)
 	found = 0;
     }
     sp->word = s0;		/* we save and then restore this */
-    free(cmd);
+    xfree(cmd);
     return found;
 }
