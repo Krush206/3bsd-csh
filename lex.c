@@ -29,7 +29,11 @@
  * SUCH DAMAGE.
  */
 
+#ifdef __linux__
+#include <bsd/sys/cdefs.h>
+#else
 #include <sys/cdefs.h>
+#endif
 #ifndef lint
 #if 0
 static char sccsid[] = "@(#)lex.c	8.1 (Berkeley) 5/31/93";
@@ -44,6 +48,7 @@ __RCSID("$NetBSD: lex.c,v 1.38 2020/10/02 17:33:13 christos Exp $");
 #include <errno.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <termios.h>
 #include <unistd.h>
@@ -204,10 +209,10 @@ sprlex(char **s, struct wordent *sp0)
 	    os = *s;
 	} else if (*os != '\n') {
 	    if (asprintf(s, "%s %s", os, w) < 0) {
-		free(os);
+		xfree(os);
 		return 1;
 	    }
-	    free(os);
+	    xfree(os);
 	    os = *s;
 	}
 	sp = sp->next;
@@ -247,8 +252,8 @@ freelex(struct wordent *vp)
     while (vp->next != vp) {
 	fp = vp->next;
 	vp->next = fp->next;
-	free(fp->word);
-	free(fp);
+	xfree(fp->word);
+	xfree(fp);
     }
     vp->prev = vp;
 }
@@ -451,11 +456,11 @@ getdol(void)
 	special++, *np++ = (Char)c, c = getC(DOEXCL);
     *np++ = (Char)c;
     switch (c) {
-    case '<':
     case '$':
     case '!':
 	if (special)
 	    seterror(ERR_SPDOLLT);
+    case '<':
 	*np = 0;
 	addla(name);
 	return;
@@ -897,11 +902,11 @@ dosub(int sc, struct wordent *en, int global)
 			otword = tword;
 			tword = subword(otword, sc, &didone);
 			if (Strcmp(tword, otword) == 0) {
-			    free(otword);
+			    xfree(otword);
 			    break;
 			}
 			else
-			    free(otword);
+			    xfree(otword);
 		    }
 		}
 	    }
@@ -1225,7 +1230,7 @@ gethent(int sc)
 	}
     np = putn(event);
     str = vis_str(np);
-    free(np);
+    xfree(np);
     seterror(ERR_NOEVENT, str);
     return (0);
 }
@@ -1424,6 +1429,7 @@ bgetc(void)
 #else /* FILEC */
     char tbuf[BUFSIZE + 1];
     int c, buf, off;        
+    ssize_t roomleft;
 #endif /* !FILEC */
 
     if (cantell) {
@@ -1458,7 +1464,7 @@ again:
 	nfbuf = xcalloc((size_t)(fblocks + 2), sizeof(*nfbuf));
 	if (fbuf) {
 	    (void)blkcpy(nfbuf, fbuf);
-	    free(fbuf);
+	    xfree(fbuf);
 	}
 	fbuf = nfbuf;
 	fbuf[fblocks] = xcalloc(BUFSIZE, sizeof(Char));
@@ -1512,7 +1518,6 @@ again:
 		}
 #ifdef FILEC
 	    }
-#endif
 	    if (c >= 0)
 		break;
 	    if (errno == EWOULDBLOCK) {
@@ -1522,7 +1527,6 @@ again:
 	    }
 	    else if (errno != EINTR)
 		break;
-#ifdef FILEC
 	}
 #endif
 	if (c <= 0)
@@ -1552,7 +1556,7 @@ bfree(void)
     sb = (int)(fseekp - 1) / BUFSIZE;
     if (sb > 0) {
 	for (i = 0; i < sb; i++)
-	    free(fbuf[i]);
+	    xfree(fbuf[i]);
 	(void)blkcpy(fbuf, &fbuf[sb]);
 	fseekp -= BUFSIZE * sb;
 	feobp -= BUFSIZE * sb;
