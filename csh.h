@@ -204,7 +204,7 @@ if (setexit() != 0) {						\
     if (cleanup_fn != NULL)					\
 	cleanup_fn(cleanup_ptr);				\
     reset();							\
-}
+} (void) 0
 #define cleanup_pop(saved)					\
 {								\
     void *cleanup_ptr;						\
