@@ -89,7 +89,11 @@ typedef void *ptr_t;
 #define xcalloc(n, s)	Calloc(n, s)
 #define xfree(p)	Free(p)
 
+#ifdef __linux__
+#include <bsd/stdio.h>
+#else
 #include <stdio.h>
+#endif
 extern FILE *cshin, *cshout, *csherr;
 
 #define	isdir(d)	(S_ISDIR(d.st_mode))
