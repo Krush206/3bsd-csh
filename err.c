@@ -29,7 +29,11 @@
  * SUCH DAMAGE.
  */
 
+#ifdef __linux__
+#include <bsd/sys/cdefs.h>
+#else
 #include <sys/cdefs.h>
+#endif
 #ifndef lint
 #if 0
 static char sccsid[] = "@(#)err.c	8.1 (Berkeley) 5/31/93";
@@ -276,9 +280,11 @@ static const char *errorlist[] =
     "Malformed file inquiry",
 #define ERR_SELOVFL	109
     "Selector overflow",
-#define ERR_FUNC	110
-    "Functions are only supported for scripts",
-#define ERR_INVALID	111
+#define ERR_FNBEGIN	110
+    "Function name must begin with a letter",
+#define ERR_FNALNUM	111
+    "Function name must contain alphanumeric characters",
+#define ERR_INVALID	112
     "Invalid Error"
 };
 
@@ -359,7 +365,7 @@ stderror(int id, ...)
     }
 
     if (seterr) {
-	free(seterr);
+	xfree(seterr);
 	seterr = NULL;
     }
 
