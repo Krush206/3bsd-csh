@@ -31,7 +31,11 @@
  */
 
 #include <sys/types.h>
+#ifdef __linux__
+#include <bsd/stdlib.h>
+#else
 #include <stdlib.h>
+#endif
 #include <stdarg.h>
 
 #include "csh.h"
