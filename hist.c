@@ -29,7 +29,11 @@
  * SUCH DAMAGE.
  */
 
+#ifdef __linux__
+#include <bsd/sys/cdefs.h>
+#else
 #include <sys/cdefs.h>
+#endif
 #ifndef lint
 #if 0
 static char sccsid[] = "@(#)hist.c	8.1 (Berkeley) 5/31/93";
@@ -131,7 +135,7 @@ static void
 hfree(struct Hist *hp)
 {
     freelex(&hp->Hlex);
-    free(hp);
+    xfree(hp);
 }
 
 void
