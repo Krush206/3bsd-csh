@@ -29,7 +29,11 @@
  * SUCH DAMAGE.
  */
 
+#ifdef __linux__
+#include <bsd/sys/cdefs.h>
+#else
 #include <sys/cdefs.h>
+#endif
 #ifndef lint
 #if 0
 static char sccsid[] = "@(#)glob.c	8.1 (Berkeley) 5/31/93";
@@ -119,7 +123,7 @@ globtilde(Char **nv, Char *s)
 	*b++ = *s++;
     *b = EOS;
     --u;
-    free(u);
+    xfree(u);
     return (Strsave(gstart));
 }
 
@@ -233,13 +237,13 @@ expbrace(Char ***nvp, Char ***elp, size_t size)
 	    int len;
 
 	    if ((len = globbrace(s, b, &bl)) < 0) {
-		free(nv);
+		xfree(nv);
 		stderror(ERR_MISSING, -len);
 	    }
-	    free(s);
+	    xfree(s);
 	    if (len == 1) {
 		*vl-- = *bl;
-		free(bl);
+		xfree(bl);
 		continue;
 	    }
 	    len = blklen(bl);
@@ -263,7 +267,7 @@ expbrace(Char ***nvp, Char ***elp, size_t size)
 	    vp++;
 	    for (bp = bl + 1; *bp; *vp++ = *bp++)
 		continue;
-	    free(bl);
+	    xfree(bl);
 	}
 
     }
@@ -298,7 +302,7 @@ globexpand(Char **v)
 		    vl = &nv[size - GLOBSPACE];
 		}
 	    }
-	    free(pargv);
+	    xfree(pargv);
 	    pargv = NULL;
 	}
 	else {
@@ -349,9 +353,9 @@ handleone(Char *str, Char **vl, int action)
 	str = Strsave(*vlp++);
 	do {
 	    cp = Strspl(str, STRspace);
-	    free(str);
+	    xfree(str);
 	    str = Strspl(cp, *vlp);
-	    free(cp);
+	    xfree(cp);
 	}
 	while (*++vlp);
 	blkfree(vl);
@@ -402,7 +406,11 @@ libglob(Char **vl)
 	    break;
 	}
 	if (globv.gl_flags & GLOB_MAGCHAR) {
+#ifdef __linux__
+	    match |= (globv.gl_pathc != 0);
+#else
 	    match |= (globv.gl_matchc != 0);
+#endif
 	    magic = 1;
 	}
 	gflgs |= GLOB_APPEND;
@@ -436,14 +444,14 @@ globone(Char *str, int action)
 	vo = globexpand(v);
 	if (noglob || (gflg & G_GLOB) == 0) {
 	    if (vo[0] == NULL) {
-		free(vo);
+		xfree(vo);
 		return (Strsave(STRNULL));
 	    }
 	    if (vo[1] != NULL)
 		return (handleone(str, vo, action));
 	    else {
 		str = strip(vo[0]);
-		free(vo);
+		xfree(vo);
 		return (str);
 	    }
 	}
@@ -461,14 +469,14 @@ globone(Char *str, int action)
 	stderror(ERR_NAME | ERR_NOMATCH);
     }
     if (vl[0] == NULL) {
-	free(vl);
+	xfree(vl);
 	return (Strsave(STRNULL));
     }
     if (vl[1] != NULL)
 	return (handleone(str, vl, action));
     else {
 	str = strip(*vl);
-	free(vl);
+	xfree(vl);
 	return (str);
     }
 }
@@ -705,7 +713,7 @@ backeval(Char *cp, int literal)
 	execute(t, -1, NULL, NULL);
 	exitstat();
     }
-    free(cp);
+    xfree(cp);
     (void)close(pvec[1]);
     c = 0;
     ip = NULL;
