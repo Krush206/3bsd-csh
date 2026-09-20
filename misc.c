@@ -31,8 +31,13 @@
  */
 
 #include <sys/param.h>
+#ifdef __linux__
+#include <bsd/stdlib.h>
+#include <bsd/unistd.h>
+#else
 #include <stdlib.h>
 #include <unistd.h>
+#endif
 #include <stdarg.h>
 
 #include "csh.h"
