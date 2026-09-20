@@ -29,7 +29,11 @@
  * SUCH DAMAGE.
  */
 
+#ifdef __linux__
+#include <bsd/sys/cdefs.h>
+#else
 #include <sys/cdefs.h>
+#endif
 #ifndef lint
 #if 0
 static char sccsid[] = "@(#)dir.c	8.1 (Berkeley) 5/31/93";
@@ -314,7 +318,7 @@ dnormalize(Char *cp)
 	    cwd[dotdot = Strlen(cwd)] = '/';
 	    cwd[dotdot + 1] = '\0';
 	    dp = Strspl(cwd, cp);
-	    free(cwd);
+	    xfree(cwd);
 	    return dp;
 	}
 	else {
@@ -398,7 +402,7 @@ dgoto(Char *cp)
 	    p--;		/* don't add a / after root */
 	for (q = cp; (*p++ = *q++) != '\0';)
 	    continue;
-	free(cp);
+	xfree(cp);
 	cp = dp;
 	dp += cwdlen;
     }
@@ -426,11 +430,11 @@ dfollow(Char *cp)
      */
     dp = dnormalize(cp);
     if (chdir(short2str(dp)) >= 0) {
-	free(cp);
+	xfree(cp);
 	return dgoto(dp);
     }
     else {
-	free(dp);
+	xfree(dp);
 	if (chdir(short2str(cp)) >= 0)
 	    return dgoto(cp);
 	serrno = errno;
@@ -450,7 +454,7 @@ dfollow(Char *cp)
 		continue;
 	    if (chdir(short2str(buf)) >= 0) {
 		printd = 1;
-		free(cp);
+		xfree(cp);
 		cp = Strsave(buf);
 		return dgoto(cp);
 	    }
@@ -458,13 +462,13 @@ dfollow(Char *cp)
     }
     dp = value(cp);
     if ((dp[0] == '/' || dp[0] == '.') && chdir(short2str(dp)) >= 0) {
-	free(cp);
+	xfree(cp);
 	cp = Strsave(dp);
 	printd = 1;
 	return dgoto(cp);
     }
     (void)strcpy(ebuf, short2str(cp));
-    free(cp);
+    xfree(cp);
     stderror(ERR_SYSTEM, ebuf, strerror(serrno));
     /* NOTREACHED */
 }
@@ -598,8 +602,8 @@ dfree(struct directory *dp)
 	dp->di_next = dp->di_prev = 0;
     }
     else {
-	free(dp->di_name);
-	free(dp);
+	xfree(dp->di_name);
+	xfree(dp);
     }
 }
 
@@ -634,7 +638,7 @@ dcanon(Char *cp, Char *p)
 	(void)Strcpy(tmpdir, p1);
 	(void)Strcat(tmpdir, STRslash);
 	(void)Strcat(tmpdir, cp);
-	free(cp);
+	xfree(cp);
 	cp = p = Strsave(tmpdir);
     }
 
@@ -739,7 +743,7 @@ dcanon(Char *cp, Char *p)
 		     */
 		    p = newcp;
 		}
-		free(cp);
+		xfree(cp);
 		cp = newcp;
 		continue;	/* canonicalize the link */
 	    }
@@ -828,7 +832,7 @@ dcanon(Char *cp, Char *p)
 		     */
 		    p = newcp;
 		}
-		free(cp);
+		xfree(cp);
 		cp = newcp;
 		continue;	/* canonicalize the link */
 	    }
@@ -848,7 +852,7 @@ dcanon(Char *cp, Char *p)
     if (p1 && *p1 == '/' &&
 	(Strncmp(p1, cp, len) != 0 || (cp[len] != '/' && cp[len] != '\0'))) {
 	static ino_t home_ino;
-	static dev_t home_dev = NODEV;
+	static dev_t home_dev = (dev_t)-1;
 	static Char *home_ptr = NULL;
 	struct stat statbuf;
 
@@ -882,7 +886,7 @@ dcanon(Char *cp, Char *p)
 	     * Use STRhome to make '~' work
 	     */
 	    newcp = Strspl(p1, cp + Strlen(p2));
-	    free(cp);
+	    xfree(cp);
 	    cp = newcp;
 	}
     }
