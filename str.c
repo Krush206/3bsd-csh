@@ -39,7 +39,11 @@
 
 #include <sys/types.h>
 #include <stdarg.h>
+#ifdef __linux__
 #include <bsd/vis.h>
+#else
+#include <vis.h>
+#endif
 
 #include "csh.h"
 #include "extern.h"
