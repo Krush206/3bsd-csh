@@ -34,19 +34,23 @@
 #ifndef _EXTERN_H_
 #define _EXTERN_H_
 
+#ifdef __linux__
+#include <bsd/sys/cdefs.h>
+#else
 #include <sys/cdefs.h>
+#endif
 
 /*
  * csh.c
  */
 int gethdir(Char *);
 void dosource(Char **, struct command *);
-__dead void exitstat(void);
-__dead void goodbye(void);
+__dead2 void exitstat(void);
+__dead2 void goodbye(void);
 void importpath(Char *);
 void initdesc(void);
-__dead void pintr(int);
-__dead void pintr1(int);
+__dead2 void pintr(int);
+__dead2 void pintr1(int);
 void printprompt(void);
 #ifdef EDIT
 char *printpromptstr(EditLine *);
@@ -57,9 +61,9 @@ void untty(void);
 int vis_fputc(int, FILE *);
 
 #ifdef PROF
-__dead void done(int);
+__dead2 void done(int);
 #else
-__dead void xexit(int);
+__dead2 void xexit(int);
 #endif
 
 /*
@@ -88,12 +92,12 @@ void heredoc(Char *);
  * err.c
  */
 void seterror(int, ...);
-__dead void stderror(int, ...);
+__dead2 void stderror(int, ...);
 
 /*
  * exec.c
  */
-__dead void doexec(Char **, struct command *);
+__dead2 void doexec(Char **, struct command *);
 void dohash(Char **, struct command *);
 void dounhash(Char **, struct command *);
 void dowhich(Char **, struct command *);
@@ -127,13 +131,13 @@ void doend(Char **, struct command *);
 void doeval(Char **, struct command *);
 void doexit(Char **, struct command *);
 void doforeach(Char **, struct command *);
-void dofunction(Char **, struct command *);
+void showall(Char **, struct command *);
 void doglob(Char **, struct command *);
 void dogoto(Char **, struct command *);
 void doif(Char **, struct command *);
 void dolimit(Char **, struct command *);
-__dead void dologin(Char **, struct command *);
-__dead void dologout(Char **, struct command *);
+__dead2 void dologin(Char **, struct command *);
+__dead2 void dologout(Char **, struct command *);
 void donohup(Char **, struct command *);
 void doonintr(Char **, struct command *);
 void doprintf(Char **, struct command *);
@@ -154,6 +158,7 @@ void gotolab(Char *);
 int srchx(Char *);
 void unalias(Char **, struct command *);
 void wfree(void);
+void dofunction(Char **, struct command *);
 
 /*
  * glob.c
@@ -225,7 +230,7 @@ Char *strip(Char *);
 Char *quote(Char *);
 char *strsave(const char *);
 char *strspl(char *, char *);
-__dead void udvar(Char *);
+__dead2 void udvar(Char *);
 
 #ifndef	SHORT_STRINGS
 # ifdef NOTUSED
@@ -240,7 +245,7 @@ char *strend(char *);
 void alias(struct wordent *);
 void freesyn(struct command *);
 struct command *syntax(struct wordent *, struct wordent *, int);
-
+void list(struct command *);
 
 /*
  * proc.c
@@ -295,6 +300,7 @@ void plist(struct varent *);
 #ifdef EDIT
 void updateediting(void);
 #endif
+void setv(Char *, Char *);
 
 /*
  * time.c
