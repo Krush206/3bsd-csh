@@ -31,9 +31,17 @@
  */
 
 #include <sys/types.h>
+#ifdef __linux__
+#include <bsd/stdlib.h>
+#else
 #include <stdlib.h>
+#endif
 #ifndef SHORT_STRINGS
+#ifdef __linux__
+#include <bsd/string.h>
+#else
 #include <string.h>
+#endif
 #endif /* SHORT_STRINGS */
 #include <stdarg.h>
 
