@@ -29,7 +29,11 @@
  * SUCH DAMAGE.
  */
 
+#ifdef __linux__
+#include <bsd/sys/cdefs.h>
+#else
 #include <sys/cdefs.h>
+#endif
 #ifndef lint
 #if !defined(BUILTIN) && !defined(SHELL)
 __COPYRIGHT("@(#) Copyright (c) 1989, 1993\
@@ -55,7 +59,11 @@ __RCSID("$NetBSD: printf.c,v 1.54 2021/05/20 02:01:07 christos Exp $");
 #include <locale.h>
 #include <stdarg.h>
 #include <stdio.h>
+#ifdef __linux__
+#include <bsd/stdlib.h>
+#else
 #include <stdlib.h>
+#endif
 #include <string.h>
 #include <unistd.h>
 
