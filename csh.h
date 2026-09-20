@@ -84,9 +84,10 @@ typedef void *ioctl_t;		/* Third arg of ioctl */
 #include "char.h"
 #include "errnum.h"
 
-#define xmalloc(i) Malloc(i)
-#define xrealloc(p, i) Realloc(p, i)
-#define xcalloc(n, s) Calloc(n, s)
+#define xmalloc Malloc
+#define xrealloc Realloc
+#define xcalloc Calloc
+#define xfree Free
 
 #include <stdio.h>
 extern FILE *cshin, *cshout, *csherr;
@@ -177,13 +178,44 @@ extern int OLDSTD;		/* Old standard input (def for cmds) */
  */
 
 #include <setjmp.h>
-extern jmp_buf reslab;
+typedef struct {
+    void *ptr;
+    void (*fn)(void *);
+    jmp_buf jmp;
+} jmp_buf_t;
+extern jmp_buf_t reslab;
 
-#define	setexit() (setjmp(reslab))
-#define	reset()	longjmp(reslab, 1)
+#define	setexit() setjmp(reslab.jmp)
+#define	reset()	longjmp(reslab.jmp, 1)
  /* Should use structure assignment here */
-#define	getexit(a) (void)memcpy((a), reslab, sizeof reslab)
-#define	resexit(a) (void)memcpy(reslab, (a), sizeof reslab)
+#define	getexit(a) (void)memcpy((a), &reslab, sizeof reslab)
+#define	resexit(a) (void)memcpy(&reslab, (a), sizeof reslab)
+#define cleanup_push(saved, dispose, resource)			\
+getexit(saved);							\
+reslab.fn = (dispose);						\
+reslab.ptr = (resource);					\
+if (setexit() != 0) {						\
+    void *cleanup_ptr;						\
+    void (*cleanup_fn)(void *);					\
+								\
+    cleanup_ptr = reslab.ptr;					\
+    cleanup_fn = reslab.fn;					\
+    resexit(saved);						\
+    if (cleanup_fn != NULL)					\
+	cleanup_fn(cleanup_ptr);				\
+    reset();							\
+}
+#define cleanup_pop(saved)					\
+{								\
+    void *cleanup_ptr;						\
+    void (*cleanup_fn)(void *);					\
+								\
+    cleanup_ptr = reslab.ptr;					\
+    cleanup_fn = reslab.fn;					\
+    resexit(saved);						\
+    if (cleanup_fn != NULL)					\
+	cleanup_fn(cleanup_ptr);				\
+} (void) 0
 
 extern Char *gointr;		/* Label for an onintr transfer */
 
@@ -308,9 +340,10 @@ struct command {
 #define	NODE_COMMAND	1	/* t_dcom <t_dlef >t_drit	 */
 #define	NODE_PAREN	2	/* ( t_dspr ) <t_dlef >t_drit	 */
 #define	NODE_PIPE	3	/* t_dlef | t_drit		 */
-#define	NODE_LIST	4	/* t_dlef ; t_drit		 */
+#define	NODE_LIST	4	/* t_dlef & t_drit		 */
 #define	NODE_OR		5	/* t_dlef || t_drit		 */
 #define	NODE_AND	6	/* t_dlef && t_drit		 */
+#define	NODE_LINE	7	/* t_dlef ; t_drit ;		 */
     int t_dflg;			/* Flags, e.g. F_AMPERSAND|... 	 */
 #define	F_SAVE	(F_NICE|F_TIME|F_NOHUP)	/* save these when re-doing 	 */
 
@@ -328,6 +361,7 @@ struct command {
 #define	F_NICE		(1<<11)	/* t_nice is meaningful 	 */
 #define	F_NOHUP		(1<<12)	/* nohup this command 		 */
 #define	F_TIME		(1<<13)	/* time this command 		 */
+#define	F_LINE		(1<<14) /* one-line command parsing	 */
     union {
 	Char *T_dlef;		/* Input redirect word 		 */
 	struct command *T_dcar;	/* Left part of list/pipe 	 */
@@ -387,6 +421,7 @@ extern struct srch {
 #define	T_TEST		16
 #define	T_THEN		17
 #define	T_WHILE		18
+#define	T_RETURN	19
 
 /*
  * Structure defining the existing while/foreach loops at this
@@ -553,15 +588,43 @@ extern History *hi;
 #endif
 extern int editing;
 
-/* Function variable(s) and function(s). */
-extern Char *Sgoal, Stype;
-extern struct funcargs {
-    Char **v;
-    int eof;
-    struct funcargs *prev,
-		    *next;
-} *fargv;
-extern int getword(Char *);
-extern int srcfile(const char *, int, int);
+#define MEM_MAX (128 * 4)
+#define BUF_MAX (1024 * 16)
+
+/*
+ * One-line command parsing structure.
+ */
+struct CommandList {
+    struct command *t;
+    struct CommandList *next;
+    struct CommandList *prev;
+    struct CommandList *enc;
+    int type;
+    int ret;
+    Char *label;
+    Char *name;
+    Char **vec0;
+    Char **vec;
+    Char **sav;
+};
+
+struct BufferList {
+    Char buf[BUFSIZE];
+    struct BufferList *next;
+    struct BufferList *prev;
+};
+
+struct Memory {
+    size_t size;
+    int use;
+    unsigned char buf[BUF_MAX];
+    struct Memory *next;
+};
+
+extern struct CommandList fntmp;
+extern struct CommandList *fnptr;
+
+extern struct Memory (*mem)[MEM_MAX];
+extern struct Memory *memfree;
 
 #endif /* !_CSH_H_ */
