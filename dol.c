@@ -29,7 +29,11 @@
  * SUCH DAMAGE.
  */
 
+#ifdef __linux__
+#include <bsd/sys/cdefs.h>
+#else
 #include <sys/cdefs.h>
+#endif
 #ifndef lint
 #if 0
 static char sccsid[] = "@(#)dol.c	8.1 (Berkeley) 5/31/93";
@@ -47,6 +51,7 @@ __RCSID("$NetBSD: dol.c,v 1.31 2019/01/05 16:54:00 christos Exp $");
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 
 #include "csh.h"
 #include "extern.h"
@@ -86,7 +91,7 @@ static int dolwcnt;		/* :wx -> 10000, else 1 */
 static void Dfix2(Char **);
 static Char *Dpack(Char *, Char *);
 static int Dword(void);
-__dead static void dolerror(Char *);
+__dead2 static void dolerror(Char *);
 static int DgetC(int);
 static void Dgetdol(void);
 static void fixDolMod(void);
@@ -411,12 +416,13 @@ Dgetdol(void)
     else if (c == '?')
 	bitset++, c = DgetC(0);	/* $? tests existence */
     switch (c) {
+	static Char peekc;
     case '!':
 	if (dimen || bitset)
 	    stderror(ERR_SYNTAX);
 	if (backpid != 0) {
 	    if (dolbang) 
-		free(dolbang);
+		xfree(dolbang);
 	    setDolp(dolbang = putn(backpid));
 	}
 	goto eatbrac;
@@ -426,8 +432,17 @@ Dgetdol(void)
 	setDolp(doldol);
 	goto eatbrac;
     case '<' | QUOTE:
-	if (bitset)
-	    stderror(ERR_NOTALLOWED, "$?<");
+	if (bitset) {
+	    if (isatty(OLDSTD) || peekc)
+		setDolp(STR1);
+	    else if (read(OLDSTD, &c, 1) > 0) {
+		peekc = c;
+		setDolp(STR1);
+	    }
+	    else
+		setDolp(STR0);
+	    goto eatbrac;
+	}
 	if (dimen)
 	    stderror(ERR_NOTALLOWED, "$?#");
 	for (np = wbuf; read(OLDSTD, &tnp, 1) == 1; np++) {
@@ -447,6 +462,12 @@ Dgetdol(void)
 	 */
 	dolmod[dolnmod++] = 'q';
 	dolmcnt = 10000;
+	if (peekc) {
+	    c = peekc;
+	    peekc = 0;
+	    if (c != ('\n' | QUOTE))
+		unDgetC(c);
+	}
 	setDolp(wbuf);
 	goto eatbrac;
     case DEOF:
@@ -595,7 +616,7 @@ Dgetdol(void)
 	Char   *cp = putn(upb - lwb + 1);
 
 	addla(cp);
-	free(cp);
+	xfree(cp);
     }
     else {
 eatmod:
@@ -717,7 +738,7 @@ setDolp(Char *cp)
 		    (void)Strcpy(np + (dp - cp), rhsub);
 		    (void)Strcpy(np + (dp - cp) + rhlen, dp + lhlen);
 
-		    free(cp);
+		    xfree(cp);
 		    dp = cp = np;
 		    didmod = 1;
 		} else {
@@ -741,12 +762,12 @@ setDolp(Char *cp)
 		if ((dp = domod(cp, dolmod[i]))) {
 		    didmod = 1;
 		    if (Strcmp(cp, dp) == 0) {
-			free(cp);
+			xfree(cp);
 			cp = dp;
 			break;
 		    }
 		    else {
-			free(cp);
+			xfree(cp);
 			cp = dp;
 		    }
 		}
@@ -764,11 +785,11 @@ setDolp(Char *cp)
 
     if (dp) {
 	addla(dp);
-	free(dp);
+	xfree(dp);
     }
     else {
 	addla(cp);
-	free(cp);
+	xfree(cp);
     }
 
     dolp = STRNULL;
@@ -833,7 +854,7 @@ again:
 		mbp = putn((((int)tv.tv_sec) ^ 
 		    ((int)tv.tv_nsec) ^ ((int)getpid())) & 0x00ffffff);
 		shtemp = Strspl(STRtmpsh, mbp);
-		free(mbp);
+		xfree(mbp);
 	    }
 	    goto again;
 	}
