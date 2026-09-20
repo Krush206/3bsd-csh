@@ -29,7 +29,11 @@
  * SUCH DAMAGE.
  */
 
+#ifdef __linux__
+#include <bsd/sys/cdefs.h>
+#else
 #include <sys/cdefs.h>
+#endif
 #ifndef lint
 #if 0
 static char sccsid[] = "@(#)func.c	8.1 (Berkeley) 5/31/93";
@@ -57,6 +61,7 @@ __RCSID("$NetBSD: func.c,v 1.44 2020/08/09 00:22:53 dholland Exp $");
 extern char **environ;
 extern int progprintf(int, char **);
 
+static int getword(Char *);
 static void islogin(void);
 static void reexecute(struct command *);
 static void preread(void);
@@ -67,6 +72,11 @@ static void toend(void);
 static void xecho(int, Char **);
 static void Unsetenv(Char *);
 static void wpfree(struct whyle *);
+static int getwhole(Char *);
+static int srchenc(struct CommandList *);
+static struct CommandList *retlist(struct command *);
+static void bufclean(void *);
+static void blkclean(void *);
 
 struct biltins *
 isbfunc(struct command *t)
@@ -140,7 +150,7 @@ doonintr(Char **v, struct command *t)
 	stderror(ERR_NAME | ERR_TERMINAL);
     cp = gointr;
     gointr = 0;
-    free(cp);
+    xfree(cp);
     if (vv == 0) {
 	if (setintr) {
 	    sigemptyset(&nsigset);
@@ -265,6 +275,13 @@ doif(Char **v, struct command *kp)
 	if (*++vv)
 	    stderror(ERR_NAME | ERR_IMPRTHEN);
 	setname(vis_str(STRthen));
+	if (kp->t_dflg & F_LINE) {
+	    struct CommandList *ptr;
+
+	    ptr = retlist(kp);
+	    ptr->enc->ret = ptr->ret = i;
+	    return;
+	}
 	/*
 	 * If expression was zero, then scan to else, otherwise just fall into
 	 * following code.
@@ -305,6 +322,8 @@ void
 /*ARGSUSED*/
 doelse(Char **v, struct command *t)
 {
+    if (t->t_dflg & F_LINE)
+	return;
     search(T_ELSE, 0, NULL);
 }
 
@@ -315,7 +334,7 @@ dogoto(Char **v, struct command *t)
     Char *lp;
 
     gotolab(lp = globone(v[1], G_ERROR));
-    free(lp);
+    xfree(lp);
 }
 
 void
@@ -354,14 +373,30 @@ doswitch(Char **v, struct command *t)
 	v--;
     if (*v)
 	stderror(ERR_SYNTAX);
-    search(T_SWITCH, 0, lp = globone(cp, G_ERROR));
-    free(lp);
+    lp = globone(cp, G_ERROR);
+    if (t->t_dflg & F_LINE) {
+        struct CommandList *ptr;
+
+        ptr = retlist(t);
+        xfree(ptr->label);
+	ptr->label = Strsave(lp);
+    }
+    search(T_SWITCH, 0, lp);
+    xfree(lp);
 }
 
 void
 /*ARGSUSED*/
 dobreak(Char **v, struct command *t)
 {
+    if(t != NULL && t->t_dflg & F_LINE) {
+	struct CommandList *ptr;
+
+	ptr = retlist(t);
+	if (!srchenc(ptr))
+	    stderror(ERR_NAME | ERR_NOTWHILE);
+	return;
+    }
     if (whyles)
 	toend();
     else
@@ -386,6 +421,7 @@ doexit(Char **v, struct command *t)
     btoeof();
     if (intty)
 	(void) close(SHIN);
+    doneinp = 1;
 }
 
 void
@@ -413,6 +449,14 @@ doforeach(Char **v, struct command *t)
     v = globall(v);
     if (v == 0)
 	stderror(ERR_NAME | ERR_NOMATCH);
+    if (t->t_dflg & F_LINE) {
+	struct CommandList *ptr;
+
+	ptr = retlist(t);
+	ptr->vec = ptr->vec0 = ptr->enc->vec = ptr->enc->vec0 = v;
+	ptr->name = ptr->enc->name = Strsave(cp);
+	return;
+    }
     nwp = xcalloc(1, sizeof *nwp);
     nwp->w_fe = nwp->w_fe0 = v;
     gargv = 0;
@@ -443,12 +487,19 @@ dowhile(Char **v, struct command *t)
      * Implement prereading here also, taking care not to evaluate the
      * expression before the loop has been read up from a terminal.
      */
-    if (intty && !again)
+    if (intty && !again && (t->t_dflg & F_LINE) == 0)
 	status = !exp0(&v, 1);
     else
 	status = !expr(&v);
     if (*v)
 	stderror(ERR_NAME | ERR_EXPRESSION);
+    if (t->t_dflg & F_LINE) {
+	struct CommandList *ptr;
+
+	ptr = retlist(t);
+	ptr->enc->ret = ptr->ret = status;
+	return;
+    }
     if (!again) {
 	struct whyle *nwp =
 		xcalloc(1, sizeof(*nwp));
@@ -494,6 +545,14 @@ void
 /*ARGSUSED*/
 doend(Char **v, struct command *t)
 {
+    if (t->t_dflg & F_LINE) {
+	struct CommandList *ptr;
+
+	ptr = retlist(t);
+	if (ptr->enc == NULL)
+	    stderror(ERR_NAME | ERR_NOTWHILE);
+	return;
+    }
     if (!whyles)
 	stderror(ERR_NAME | ERR_NOTWHILE);
     btell(&whyles->w_end);
@@ -504,6 +563,14 @@ void
 /*ARGSUSED*/
 docontin(Char **v, struct command *t)
 {
+    if (t->t_dflg & F_LINE) {
+	struct CommandList *ptr;
+
+	ptr = retlist(t);
+	if (!srchenc(ptr))
+	    stderror(ERR_NAME | ERR_NOTWHILE);
+	return;
+    }
     if (!whyles)
 	stderror(ERR_NAME | ERR_NOTWHILE);
     doagain();
@@ -558,6 +625,8 @@ void
 /*ARGSUSED*/
 doswbrk(Char **v, struct command *t)
 {
+    if (t->t_dflg & F_LINE)
+	return;
     search(T_BRKSW, 0, NULL);
 }
 
@@ -619,7 +688,7 @@ search(int type, int level, Char *goal)
 	    cp = strip(Dfix1(aword));
 	    if (Gmatch(goal, cp))
 		level = -1;
-	    free(cp);
+	    xfree(cp);
 	    break;
 	case T_DEFAULT:
 	    if (type == T_SWITCH && level == 0)
@@ -693,11 +762,11 @@ wpfree(struct whyle *wp)
     if (wp->w_fe0)
 	blkfree(wp->w_fe0); 
     if (wp->w_fename)
-	free(wp->w_fename);
-    free(wp);
+	xfree(wp->w_fename);
+    xfree(wp);
 }
 
-int
+static int
 getword(Char *wp)
 {
     int c, d, found, kwd;
@@ -775,11 +844,9 @@ past:
     case T_SWITCH:
 	stderror(ERR_NAME | ERR_NOTFOUND, "endsw");
 	/* NOTREACHED */
-    case T_EXIT:
-	if (fargv->eof)
-	    return (intptr_t) &fargv;
+    case T_RETURN:
 	setname(vis_str(Sgoal));
-	stderror(ERR_NAME | ERR_NOTFOUND, "exit");
+	stderror(ERR_NAME | ERR_NOTFOUND, "return");
     }
     return (0);
 }
@@ -958,7 +1025,7 @@ dosetenv(Char **v, struct command *t)
 	AsciiOnly = 0;
 #endif				/* NLS */
     }
-    free(lp);
+    xfree(lp);
 }
 
 void
@@ -970,7 +1037,7 @@ dounsetenv(Char **v, struct command *t)
     int i, maxi;
 
     if (name)
-	free(name);
+	xfree(name);
     /*
      * Find the longest environment variable
      */
@@ -1011,7 +1078,7 @@ dounsetenv(Char **v, struct command *t)
 		Unsetenv(name);
 		break;
 	    }
-    free(name);
+    xfree(name);
     name = NULL;
 }
 
@@ -1029,21 +1096,21 @@ Setenv(Char *name, Char *val)
 	if (*cp != 0 || *dp != '=')
 	    continue;
 	cp = Strspl(STRequal, val);
-	free(* ep);
+	xfree(* ep);
 	*ep = strip(Strspl(name, cp));
-	free(cp);
+	xfree(cp);
 	blkfree((Char **)environ);
 	environ = short2blk(STR_environ);
 	return;
     }
     cp = Strspl(name, STRequal);
     blk[0] = strip(Strspl(cp, val));
-    free(cp);
+    xfree(cp);
     blk[1] = 0;
     STR_environ = blkspl(STR_environ, blk);
     blkfree((Char **)environ);
     environ = short2blk(STR_environ);
-    free(oep);
+    xfree(oep);
 }
 
 static void
@@ -1064,8 +1131,8 @@ Unsetenv(Char *name)
 	STR_environ = blkspl(STR_environ, ep + 1);
 	environ = short2blk(STR_environ);
 	*ep = cp;
-	free(cp);
-	free(oep);
+	xfree(cp);
+	xfree(oep);
 	return;
     }
 }
@@ -1108,9 +1175,7 @@ static const struct limits {
     { RLIMIT_RSS,	"memoryuse",	1024,	"kbytes" },
     { RLIMIT_MEMLOCK,	"memorylocked",	1024,	"kbytes" },
     { RLIMIT_NPROC,	"maxproc",	1,	"" },
-    { RLIMIT_NTHR,	"maxthread",	1,	"" },
     { RLIMIT_NOFILE,	"openfiles",	1,	"" },
-    { RLIMIT_SBSIZE,	"sbsize",	1,	"bytes" },
     { RLIMIT_AS,	"vmemoryuse",	1024,	"kbytes" },
     { -1,		NULL,		0,	NULL }
 };
@@ -1374,7 +1439,7 @@ void
 /*ARGSUSED*/
 doeval(Char **v, struct command *t)
 {
-    jmp_buf osetexit;
+    jmp_buf_t osetexit;
     Char *oevalp, **oevalvec, **savegv;
     int my_reenter, odidfds, oSHERR, oSHIN, oSHOUT, saveERR, saveIN, saveOUT;
 
@@ -1409,7 +1474,7 @@ doeval(Char **v, struct command *t)
     saveOUT = dcopy(SHOUT, -1);
     saveERR = dcopy(SHERR, -1);
 
-    getexit(osetexit);
+    getexit(&osetexit);
 
     if ((my_reenter = setexit()) == 0) {
 	evalvec = v;
@@ -1436,66 +1501,136 @@ doeval(Char **v, struct command *t)
     SHERR = dmove(saveERR, oSHERR);
     if (gv)
 	blkfree(gv), gv = NULL;
-    resexit(osetexit);
+    resexit(&osetexit);
     gv = savegv;
     if (my_reenter)
 	stderror(ERR_SILENT);
 }
 
+static struct BufferList buftmp = { { 0 }, &buftmp, &buftmp };
+static struct BufferList *bufptr;
+
 void
-/*ARGSUSED*/
-doprintf(Char **v, struct command *t)
+dofunction(Char **v, struct command *c)
 {
-    char **c;
-    int ret;
+    jmp_buf_t oldexit[2];
+    struct BufferList *new;
+    Char *p;
+    Char *blk[BUFSIZE];
+    int i;
 
-    ret = progprintf(blklen(v), c = short2blk(v));
-    (void)fflush(cshout);
-    (void)fflush(csherr);
-
-    blkfree((Char **)c);
-    if (ret)
-	stderror(ERR_SILENT);
+    if (*++v == NULL) {
+	plist(&aliases);
+	return;
+    }
+    Sgoal = *v;
+    Stype = T_RETURN;
+    if (!letter(*Sgoal))
+	stderror(ERR_NAME | ERR_FNBEGIN);
+    p = Sgoal;
+    while (*++p)
+	if (!alnum(*p))
+	    stderror(ERR_NAME | ERR_FNALNUM);
+    cleanup_push(&oldexit[0], bufclean, &buftmp);
+    bufptr = &buftmp;
+    do {
+	new = xmalloc(sizeof *new);
+	new->next = &buftmp;
+	buftmp.prev = bufptr = bufptr->next = new;
+	new->buf[0] = 0;
+    } while (!getwhole(new->buf));
+    blk[0] = Strsave(STRLparen);
+    blk[1] = NULL;
+    cleanup_push(&oldexit[1], blkclean, blk);
+    i = 1;
+    for (new = buftmp.next; new != &buftmp; new = new->next) {
+	if (i + 2 >= BUFSIZE)
+	    stderror(ERR_WTOOLONG);
+	blk[i++] = quote(Strsave(new->buf));
+	blk[i++] = Strsave(STRsemi);
+    }
+    if (i + 1 >= BUFSIZE)
+	stderror(ERR_WTOOLONG);
+    blk[i++] = Strsave(STRRparen);
+    blk[i] = NULL;
+    set1(strip(Sgoal), saveblk(blk), &aliases);
+    cleanup_pop(&oldexit[1]);
+    cleanup_pop(&oldexit[0]);
 }
 
-void
-dofunction(Char **v, struct command *t)
+static int
+getwhole(Char *buf)
 {
-    if (!ffile)
-	stderror(ERR_FUNC);
+    Char word[BUFSIZE];
 
-    if (fargv) {
-	fargv->next = malloc(sizeof *fargv);
-	fargv->next->prev = fargv;
-	fargv = fargv->next;
-    } else {
-	fargv = malloc(sizeof *fargv);
-	fargv->prev = NULL;
+    word[0] = 0;
+    if (intty && fseekp == feobp && aret == F_SEEK)
+	(void) fprintf(cshout, "? "), (void) fflush(cshout);
+    (void) getword(word);
+    if (srchx(word) == T_RETURN) {
+	(void) Strcat(buf, word);
+	(void) getword(NULL);
+	return 1;
     }
+    do {
+	(void) Strcat(buf, word);
+	(void) Strcat(buf, STRspace);
+    } while (getword(word));
+    buf[Strlen(buf) - 1] = 0;
+    (void) getword(NULL);
+    return 0;
+}
 
-    {
-	int i = 0;
-	Char **vh = NULL;
+struct CommandList *
+retlist(struct command *t)
+{
+    struct CommandList *ptr;
 
-	for (v++; *v; v++, i++) {
-	    vh = xrealloc(vh, sizeof(Char *[i + 2]));
-	    vh[i] = xmalloc(sizeof(Char [Strlen(*v) + 1]));
-	    Strcpy(vh[i], *v);
-	}
+    ptr = fnptr;
+    while (ptr->t != t)
+        ptr = ptr->next;
+    return ptr;
+}
 
-	vh[i] = NULL;
-	fargv->v = vh;
-    }
+static int
+srchenc(struct CommandList *lp)
+{
+    struct CommandList *ptr;
 
-    srcfile(short2str(ffile), 0, 0);
-    /* Reset STRargv on function exit. */
-    set(STRargv, NULL);
+    for (ptr = lp; ptr != &fntmp; ptr = ptr->prev)
+        switch (ptr->type) {
+        case T_WHILE:
+            return 1;
+        case T_FOREACH:
+            return 2;
+        }
+    return 0;
+}
 
-    if (fargv->prev) {
-	fargv = fargv->prev;
-	free(fargv->next);
-    } else {
-	free(fargv);
-	fargv = NULL;
+static void
+blkclean(void *xblk)
+{
+    Char **blk;
+
+    blk = xblk;
+    while (*blk != NULL)
+	xfree(*blk++);
+}
+
+static void
+bufclean(void *xbuf)
+{
+    struct BufferList *buf;
+    struct BufferList *ptr;
+
+    buf = xbuf;
+    ptr = buf->next;
+    buf->next = buf->prev = buf;
+    while (ptr != buf) {
+	struct BufferList *tmp;
+
+	tmp = ptr;
+	ptr = ptr->next;
+	xfree(tmp);
     }
 }
