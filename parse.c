@@ -29,7 +29,11 @@
  * SUCH DAMAGE.
  */
 
+#ifdef __linux__
+#include <bsd/sys/cdefs.h>
+#else
 #include <sys/cdefs.h>
+#endif
 #ifndef lint
 #if 0
 static char sccsid[] = "@(#)parse.c	8.1 (Berkeley) 5/31/93";
@@ -57,6 +61,7 @@ static struct command *syn1a(struct wordent *, struct wordent *, int);
 static struct command *syn1b(struct wordent *, struct wordent *, int);
 static struct command *syn2(struct wordent *, struct wordent *, int);
 static struct command *syn3(struct wordent *, struct wordent *, int);
+static void list1(struct command *);
 
 #define ALEFT 21		/* max of 20 alias expansions	 */
 #define HLEFT 11		/* max of 10 history expansions	 */
@@ -72,20 +77,20 @@ extern int hleft;
 void
 alias(struct wordent *lexp)
 {
-    jmp_buf osetexit;
+    jmp_buf_t osetexit;
 
     aleft = ALEFT;
     hleft = HLEFT;
-    getexit(osetexit);
+    getexit(&osetexit);
     (void)setexit();
     if (haderr) {
-	resexit(osetexit);
+	resexit(&osetexit);
 	reset();
     }
     if (--aleft == 0)
 	stderror(ERR_ALIASLOOP);
     asyntax(lexp->next, lexp);
-    resexit(osetexit);
+    resexit(&osetexit);
 }
 
 static void
@@ -171,7 +176,7 @@ asyn3(struct wordent *p1, struct wordent *p2)
 
 	cp = alout.next->word;
 	alout.next->word = Strspl(STRQNULL, cp);
-	free(cp);
+	xfree(cp);
     }
     p1 = freenod(p1, redid ? p2 : p1->next);
     if (alout.next != &alout) {
@@ -179,8 +184,8 @@ asyn3(struct wordent *p1, struct wordent *p2)
 	alout.prev->prev->next = p1->next;
 	alout.next->prev = p1;
 	p1->next = alout.next;
-	free(alout.prev->word);
-	free(alout.prev);
+	xfree(alout.prev->word);
+	xfree(alout.prev);
     }
     reset();			/* throw! */
 }
@@ -192,9 +197,9 @@ freenod(struct wordent *p1, struct wordent *p2)
 
     retp = p1->prev;
     while (p1 != p2) {
-	free(p1->word);
+	xfree(p1->word);
 	p1 = p1->next;
-	free(p1->prev);
+	xfree(p1->prev);
     }
     retp->next = p2;
     p2->prev = retp;
@@ -261,7 +266,8 @@ syn0(struct wordent *p1, struct wordent *p2, int flags)
 	    t1 = syn1(p1, p, flags);
 	    if (t1->t_dtyp == NODE_LIST ||
 		t1->t_dtyp == NODE_AND ||
-		t1->t_dtyp == NODE_OR) {
+		t1->t_dtyp == NODE_OR ||
+		t1->t_dtyp == NODE_LINE) {
 		t = xcalloc(1, sizeof(*t));
 		t->t_dtyp = NODE_PAREN;
 		t->t_dflg = F_AMPERSAND | F_NOINTERRUPT;
@@ -310,10 +316,14 @@ syn1(struct wordent *p1, struct wordent *p2, int flags)
 		break;
 	    t = xcalloc(1, sizeof(*t));
 	    t->t_dtyp = NODE_LIST;
+	    if (p->word[0] == ';')
+		t->t_dtyp = NODE_LINE;
 	    t->t_dcar = syn1a(p1, p, flags);
 	    t->t_dcdr = syntax(p->next, p2, flags);
 	    if (t->t_dcdr == 0)
 		t->t_dcdr = t->t_dcar, t->t_dcar = 0;
+	    else if (t->t_dcdr->t_dtyp != NODE_LINE)
+		seterror(ERR_MISSING, ';');
 	    return (t);
 	}
     return (syn1a(p1, p2, flags));
@@ -620,22 +630,58 @@ freesyn(struct command *t)
     switch (t->t_dtyp) {
     case NODE_COMMAND:
 	for (v = t->t_dcom; *v; v++)
-	    free(* v);
-	free(t->t_dcom);
-	free(t->t_dlef);
-	free(t->t_drit);
+	    xfree(* v);
+	xfree(t->t_dcom);
+	xfree(t->t_dlef);
+	xfree(t->t_drit);
 	break;
     case NODE_PAREN:
 	freesyn(t->t_dspr);
-	free(t->t_dlef);
-	free(t->t_drit);
+	xfree(t->t_dcom);
+	xfree(t->t_dlef);
+	xfree(t->t_drit);
 	break;
     case NODE_AND:
     case NODE_OR:
     case NODE_PIPE:
     case NODE_LIST:
+    case NODE_LINE:
 	freesyn(t->t_dcar), freesyn(t->t_dcdr);
 	break;
     }
-    free(t);
+    xfree(t);
+}
+
+void
+list(struct command *t)
+{
+    switch (t->t_dtyp) {
+    case NODE_AND:
+    case NODE_OR:
+    case NODE_PIPE:
+    case NODE_LIST:
+	if (t->t_dcar)
+	    list(t->t_dcar);
+	if (t->t_dcdr)
+	    list(t->t_dcdr);
+	break;
+    case NODE_PAREN:
+	list(t->t_dspr);
+	break;
+    case NODE_LINE:
+	if (t->t_dcar)
+	    list1(t->t_dcar);
+	if (t->t_dcdr)
+	    list1(t->t_dcdr);
+    }
+}
+
+static void
+list1(struct command *t)
+{
+    if (t->t_dtyp == NODE_LINE) {
+	list(t);
+	return;
+    }
+    t->t_dflg |= F_LINE;
 }
