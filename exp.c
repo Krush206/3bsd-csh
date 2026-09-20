@@ -32,10 +32,19 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#ifdef __linux__
+#include <bsd/stdlib.h>
+#include <bsd/unistd.h>
+#else
 #include <stdlib.h>
 #include <unistd.h>
+#endif
 #ifndef SHORT_STRINGS
+#ifdef __linux__
+#include <bsd/string.h>
+#else
 #include <string.h>
+#endif
 #endif /* SHORT_STRINGS */
 #include <stdarg.h>
 
