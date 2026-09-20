@@ -29,7 +29,11 @@
  * SUCH DAMAGE.
  */
 
+#ifdef __linux__
+#include <bsd/sys/cdefs.h>
+#else
 #include <sys/cdefs.h>
+#endif
 #ifndef lint
 __COPYRIGHT("@(#) Copyright (c) 1980, 1991, 1993\
  The Regents of the University of California.  All rights reserved.");
@@ -53,11 +57,24 @@ __RCSID("$NetBSD: csh.c,v 1.56 2022/09/15 11:35:06 martin Exp $");
 #include <paths.h>	/* should this be included in pathnames.h instead? */
 #include <pwd.h>
 #include <stdarg.h>
+#ifdef __linux__
+#include <bsd/stdlib.h>
+#else
 #include <stdlib.h>
+#endif
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#ifdef __linux__
+#include <bsd/vis.h>
+#else
 #include <vis.h>
+#endif
+#ifdef __linux__
+#include <bsd/stdio.h>
+#else
+#include <stdio.h>
+#endif
 
 #include "csh.h"
 #include "extern.h"
@@ -121,7 +138,7 @@ int SHOUT;
 int SHERR;
 int OLDSTD;
 
-jmp_buf reslab;
+jmp_buf_t reslab;
 
 Char *gointr;
 
@@ -181,16 +198,17 @@ int nverbose = 0;
 int prompt = 1;
 int quitit = 0;
 int reenter = 0;
-struct funcargs *fargv = NULL;
 
 extern char **environ;
 
-static ssize_t readf(void *, void *, size_t);
+static void xballoc(void);
+static int srcfile(const char *, int, int);
+static int readf(void *, char *, int);
 static off_t seekf(void *, off_t, int);
-static ssize_t writef(void *, const void *, size_t);
+static int writef(void *, const char *, int);
 static int closef(void *);
 static int srccat(Char *, Char *);
-__dead static void phup(int);
+__dead2 static void phup(int);
 static void srcunit(int, int, int);
 static void mailchk(void);
 #ifndef _PATH_DEFPATH
@@ -211,6 +229,7 @@ main(int argc, char *argv[])
     cshout = stdout;
     csherr = stderr;
 
+    xballoc();
     setprogname(argv[0]);
     settimes();			/* Immed. estab. timing base */
 
@@ -298,14 +317,11 @@ main(int argc, char *argv[])
     (void)fclose(cshin);
     (void)fclose(cshout);
     (void)fclose(csherr);
-    if (!(cshin  = funopen2((void *) &SHIN,  readf, writef, seekf, NULL,
-	closef)))
+    if (!(cshin  = funopen((void *) &SHIN,  readf, writef, seekf, closef)))
 	exit(1);
-    if (!(cshout = funopen2((void *) &SHOUT, readf, writef, seekf, NULL,
-	closef)))
+    if (!(cshout = funopen((void *) &SHOUT, readf, writef, seekf, closef)))
 	exit(1);
-    if (!(csherr = funopen2((void *) &SHERR, readf, writef, seekf, NULL,
-	closef)))
+    if (!(csherr = funopen((void *) &SHERR, readf, writef, seekf, closef)))
 	exit(1);
     (void)setvbuf(cshin,  NULL, _IOLBF, 0);
     (void)setvbuf(cshout, NULL, _IOLBF, 0);
@@ -729,7 +745,7 @@ srccat(Char *cp, Char *dp)
 
     ep = Strspl(cp, dp);
     ptr = short2str(ep);
-    free(ep);
+    xfree(ep);
     return srcfile(ptr, mflag ? 0 : 1, 0);
 }
 
@@ -764,11 +780,12 @@ srcunit(int unit, int onlyown, int hflg)
     struct whyle *oldwhyl;
     struct Bin saveB;
     sigset_t nsigset, osigset;
-    jmp_buf oldexit;
+    jmp_buf_t oldexit;
     Char *oarginp, *oevalp, **oevalvec, *ogointr;
     Char OHIST;
-    int oSHIN, oinsource, oldintty, oonelflg; 
+    int oSHIN, oinsource, oldintty, oonelflg, i;
     int oenterhist, otell;      
+    int savefd[3];
     /* The (few) real local variables */
     int my_reenter;
 
@@ -785,13 +802,23 @@ srcunit(int unit, int onlyown, int hflg)
     OHIST = HIST;
     otell = cantell;
 
+    if (unit < 0)
+	return;
+    if (didfds) {
+	/*
+	 * doio() installs pipes and redirections on 0, 1, and 2. Preserve
+	 * them before donefds() so commands read from a sourced file inherit
+	 * the calling builtin's standard descriptors.
+	 */
+	for (i = 0; i < 3; i++)
+	    savefd[i] = dcopy(i, -1);
+	donefds();
+	for (i = 0; i < 3; i++)
+	    (void) dmove(savefd[i], i);
+    }
     (void) dcopy(0, FOLDSTD);
     (void) dcopy(1, FSHOUT);
     (void) dcopy(2, FSHERR);
-    if (unit < 0)
-	return;
-    if (didfds)
-	donefds();
     if (onlyown) {
 	struct stat stb;
 
@@ -812,7 +839,7 @@ srcunit(int unit, int onlyown, int hflg)
      * efficient globally on many variable references however.
      */
     insource = 1;
-    getexit(oldexit);
+    getexit(&oldexit);
 
     if (setintr) {
 	sigemptyset(&nsigset);
@@ -839,119 +866,8 @@ srcunit(int unit, int onlyown, int hflg)
 	(void)sigprocmask(SIG_SETMASK, &osigset, NULL);
     settell();
 
-    if ((my_reenter = setexit()) == 0) {
-	/* Functions must have an exit to their end.
-	 * if (!fargv->prev) is only true if this is a first function call.
-	 * First seek for an ending exit before jumping to the label,
-	 * then seek for an ending exit on the requested label.
-	 * Function arguments are passed to STRargv.
-	 * STRargv is reset after the function is done. */
-	if (fargv) {
-	    Char aword[BUFSIZE],
-		 funcexit[] = { 'e', 'x', 'i', 't', 0 },
-		 funcmain[] = { 'm', 'a', 'i', 'n', 0 };
-	    Sgoal = fargv->v[0];
-	    Stype = (Char) T_GOTO;
-	    fargv->eof = 0;
-
-	    if (!fargv->prev)
-		while (1) {
-		    aword[0] = 0;
-		    (void) getword(aword);
-		    if (eq(aword, funcexit)) {
-			int last = 1;
-
-			while (1) {
-			    do {
-				aword[0] = 0;
-				(void) getword(NULL);
-				(void) getword(aword);
-			    } while (!aword[0]);
-			    if (aword[0] != ':' && lastchr(aword) == ':') {
-				if (!last) {
-				    setname(vis_str(funcmain));
-				    stderror(ERR_NAME | ERR_NOTFOUND, short2str(funcexit));
-				}
-				break;
-			    }
-			    if (!eq(aword, funcexit)) {
-				last = 0;
-				continue;
-			    }
-			    last = 1;
-			}
-
-			break;
-		    }
-		    if (aword[0] != ':' && lastchr(aword) == ':') {
-			setname(vis_str(funcmain));
-			stderror(ERR_NAME | ERR_NOTFOUND, short2str(funcexit));
-		    }
-		    getword(NULL);
-		}
-
-	    setq(STRargv, &fargv->v[1], &shvhed);
-	    gotolab(fargv->v[0]);
-
-	    {
-		struct Ain a;
-
-		Stype = (Char) T_EXIT;
-		a.type = F_SEEK;
-		btell(&a);
-
-		while (1) {
-		    aword[0] = 0;
-		    (void) getword(aword);
-		    if (eq(aword, funcexit)) {
-			int last = 1, eof = 0;
-
-			fargv->eof = 1;
-			while (1) {
-			    do {
-				aword[0] = 0;
-				(void) getword(NULL);
-				if ((intptr_t) getword(aword) == (intptr_t) &fargv) {
-				    eof = 1;
-				    break;
-				}
-			    } while (!aword[0]);
-			    if (eof) {
-				if (!last) {
-				    setname(vis_str(Sgoal));
-				    stderror(ERR_NAME | ERR_NOTFOUND, short2str(funcexit));
-				}
-				break;
-			    }
-			    if (aword[0] != ':' && lastchr(aword) == ':') {
-				if (!last) {
-				    setname(vis_str(Sgoal));
-				    stderror(ERR_NAME | ERR_NOTFOUND, short2str(funcexit));
-				}
-				break;
-			    }
-			    if (!eq(aword, funcexit)) {
-				last = 0;
-				continue;
-			    }
-			    last = 1;
-			}
-
-			break;
-		    }
-		    if (aword[0] != ':' && lastchr(aword) == ':') {
-			setname(vis_str(Sgoal));
-			stderror(ERR_NAME | ERR_NOTFOUND, short2str(funcexit));
-		    }
-		    (void) getword(NULL);
-		}
-
-		bseek(&a);
-	    }
-	}
-
+    if ((my_reenter = setexit()) == 0)
 	process(0);				/* 0 -> blow away on errors */
-    }
 
     if (setintr)
 	(void)sigprocmask(SIG_SETMASK, &osigset, NULL);
@@ -960,8 +876,8 @@ srcunit(int unit, int onlyown, int hflg)
 
 	/* We made it to the new state... free up its storage */
 	for (i = 0; i < fblocks; i++)
-	    free(fbuf[i]);
-	free(fbuf);
+	    xfree(fbuf[i]);
+	xfree(fbuf);
 
 	/* Reset input arena */
 	/* (note that this clears fbuf and fblocks) */
@@ -977,7 +893,7 @@ srcunit(int unit, int onlyown, int hflg)
 	cantell = otell;
     }
 
-    resexit(oldexit);
+    resexit(&oldexit);
     /*
      * If process reset() (effectively an unwind) then we must also unwind.
      */
@@ -1052,7 +968,7 @@ goodbye(void)
     /* NOTREACHED */
 }
 
-__dead void
+__dead2 void
 exitstat(void)
 {
     Char *s;
@@ -1195,12 +1111,12 @@ void
 process(int catch)
 {
     struct command *t;
-    jmp_buf osetexit;
+    jmp_buf_t osetexit;
     sigset_t nsigset;
 
     t = savet;    
     savet = NULL;
-    getexit(osetexit);
+    getexit(&osetexit);
 
     for (;;) {
 	pendjob();
@@ -1229,7 +1145,7 @@ process(int catch)
 	    if (!catch) {
 		/* unwind */
 		doneinp = 0;
-		resexit(osetexit);
+		resexit(&osetexit);
 		savet = t;
 		reset();
 	    }
@@ -1267,7 +1183,7 @@ process(int catch)
 	    (void)fflush(cshout);
 	}
 	if (seterr) {
-	    free(seterr);
+	    xfree(seterr);
 	    seterr = NULL;
 	}
 
@@ -1323,6 +1239,13 @@ process(int catch)
 	if (seterr)
 	    stderror(ERR_OLD);
 
+	/*
+	 * Parsing mutates shared lexer state, so it runs with SIGINT blocked.
+	 * Commands executed in this shell (notably NODE_LINE loops) must be
+	 * interruptible just like commands executed in a child process.
+	 */
+	if (setintr)
+	    (void) sigprocmask(SIG_UNBLOCK, &nsigset, NULL);
 	execute(savet, (tpgrp > 0 ? tpgrp : -1), NULL, NULL);
 
 	/*
@@ -1332,7 +1255,7 @@ process(int catch)
 	freesyn(savet), savet = NULL;
     }
 
-    resexit(osetexit);
+    resexit(&osetexit);
     savet = t;
 }
 
@@ -1353,7 +1276,7 @@ dosource(Char **v, struct command *t)
     (void)Strcpy(buf, *v);
     f = globone(buf, G_ERROR);
     (void)strcpy((char *)buf, short2str(f));
-    free(f);
+    xfree(f);
     if (!srcfile((char *)buf, 0, hflg) && !hflg)
 	stderror(ERR_SYSTEM, (char *)buf, strerror(errno));
 }
@@ -1444,15 +1367,15 @@ gethdir(Char *home)
  */
 #define DESC(a) (*((int *) (a)) - (didfds && *((int *) a) >= FSHIN ? FSHIN : 0))
 
-static ssize_t
-readf(void *oreo, void *buf, size_t siz)
+static int
+readf(void *oreo, char *buf, int siz)
 {
     return read(DESC(oreo), buf, siz);
 }
 
 
-static ssize_t
-writef(void *oreo, const void *buf, size_t siz)
+static int
+writef(void *oreo, const char *buf, int siz)
 {
     return write(DESC(oreo), buf, siz);
 }
@@ -1505,7 +1428,7 @@ initdesc(void)
 }
 
 
-__dead void
+__dead2 void
 #ifdef PROF
 done(int i)
 #else
@@ -1603,3 +1526,19 @@ printpromptstr(EditLine *elx) {
     return pbuf;
 }
 #endif
+
+static void
+xballoc(void)
+{
+    int i;
+
+    mem = malloc(sizeof *mem);
+    if (mem == NULL)
+	stderror(ERR_NOMEM);
+    for (i = 0; i < MEM_MAX; i++) {
+	(*mem)[i].use = 0;
+	(*mem)[i].size = 0;
+	(*mem)[i].next = memfree;
+	memfree = &(*mem)[i];
+    }
+}
