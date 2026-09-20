@@ -29,7 +29,11 @@
  * SUCH DAMAGE.
  */
 
+#ifdef __linux__
+#include <bsd/sys/cdefs.h>
+#else
 #include <sys/cdefs.h>
+#endif
 #ifndef lint
 #if 0
 static char sccsid[] = "@(#)set.c	8.1 (Berkeley) 5/31/93";
@@ -42,7 +46,16 @@ __RCSID("$NetBSD: set.c,v 1.40 2022/09/15 11:35:06 martin Exp $");
 
 #include <stdarg.h>
 #include <stdlib.h>
-
+#ifdef __linux__
+#include <bsd/stdlib.h>
+#else
+#include <stdlib.h>
+#endif
+#ifdef __linux__
+#include <bsd/unistd.h>
+#else
+#include <unistd.h>
+#endif
 #include <string.h>
 
 #include "csh.h"
@@ -63,7 +76,7 @@ static void balance(struct varent *, int, int);
 static int wantediting;
 
 static const char *
-alias_text(void *dummy __unused, const char *name)
+alias_text(void *dummy __attribute__((__unused__)), const char *name)
 {
 	static char *buf;
 	struct varent *vp;
@@ -82,7 +95,7 @@ alias_text(void *dummy __unused, const char *name)
 		len++;
 	}
 	len++;
-	free(buf);
+	xfree(buf);
 	p = buf = xmalloc(len);
 	for (av = vp->vec; *av; av++) {
 	    const char *s = vis_str(*av);
@@ -143,7 +156,7 @@ update_vars(Char *vp)
 	Setenv(STRHOME, cp);
 	/* fix directory stack for new tilde home */
 	dtilde();
-	free(cp);
+	xfree(cp);
     }
 #ifdef FILEC
     else if (eq(vp, STRfilec))
@@ -162,6 +175,7 @@ doset(Char **v, struct command *t)
     Char op, *p, **vecp, *vp;
     int subscr = 0;	/* XXX: GCC */
     int hadsub;
+    int pipe;
 
     v++;
     p = *v++;
@@ -169,7 +183,13 @@ doset(Char **v, struct command *t)
 	prvars();
 	return;
     }
+    pipe = 0;
+    if (t->t_dlef || !isatty(0))
+	pipe = 1;
     do {
+	Char arr[2];
+	Char copy[BUFSIZE];
+
 	hadsub = 0;
 	vp = p;
 	if (letter(*p))
@@ -214,10 +234,45 @@ doset(Char **v, struct command *t)
 	    *e = p;
 	    v = e + 1;
 	}
-	else if (hadsub)
-	    asx(vp, subscr, Strsave(p));
-	else
-	    set(vp, Strsave(p));
+	else if (hadsub) {
+	    Char *new;
+
+	    if (pipe) {
+		arr[1] = copy[0] = 0;
+		while (read(0, arr, 1) > 0)
+		    (void) Strcat(copy, arr);
+		new = quote(Strsave(copy));
+	    }
+	    else
+		new = Strsave(p);
+	    asx(vp, subscr, new);
+	}
+	else {
+	    if (pipe) {
+		int empty;
+
+		empty = 1;
+		arr[1] = copy[0] = 0;
+		while (read(0, arr, 1) > 0) {
+		    if (arr[0] == '\n') {
+			empty = 0;
+			break;
+		    }
+		    (void) Strcat(copy, arr);
+		}
+		if (empty && Strlen(copy) == 0) {
+		    Char **empty;
+
+		    empty = xmalloc(sizeof *empty);
+		    *empty = NULL;
+		    set1(vp, empty, &shvhed);
+		}
+		else
+		    setv(vp, quote(Strsave(copy)));
+	    }
+	    else
+		set(vp, Strsave(p));
+	}
 	update_vars(vp);
     } while ((p = *v++) != NULL);
 }
@@ -240,7 +295,7 @@ asx(Char *vp, int subscr, Char *p)
     struct varent *v;
 
     v = getvx(vp, subscr);
-    free(v->vec[subscr - 1]);
+    xfree(v->vec[subscr - 1]);
     v->vec[subscr - 1] = globone(p, G_APPEND);
 }
 
@@ -340,9 +395,9 @@ dolet(Char **v, struct command *t)
 		dohash(NULL, NULL);
 	    }
 	}
-	free(vp);
+	xfree(vp);
 	if (c != '=')
-	    free(p);
+	    xfree(p);
     } while ((p = *v++) != NULL);
 }
 
@@ -354,7 +409,7 @@ xset(Char *cp, Char ***vp)
     if (*cp) {
 	dp = Strsave(cp);
 	--(*vp);
-	free(** vp);
+	xfree(** vp);
 	**vp = dp;
     }
     return (putn(expr(vp)));
@@ -628,7 +683,7 @@ unsetv1(struct varent *p)
      * Free associated memory first to avoid complications.
      */
     blkfree(p->vec);
-    free(p->v_name);
+    xfree(p->v_name);
     /*
      * If p is missing one child, then we can move the other into where p is.
      * Otherwise, we find the predecessor of p, which is guaranteed to have no
@@ -656,7 +711,7 @@ unsetv1(struct varent *p)
     /*
      * Free the deleted node, and rebalance.
      */
-    free(p);
+    xfree(p);
     balance(pp, f, 1);
 }
 
@@ -875,4 +930,18 @@ x:
 	} while (p->v_right == c);
 	goto x;
     }
+}
+
+/*
+ * The caller is responsible for putting value in a safe place
+ */
+void
+setv(Char *var, Char *val)
+{
+    Char *(*vec)[2];
+
+    vec = xmalloc(sizeof *vec);
+    (*vec)[0] = val;
+    (*vec)[1] = NULL;
+    set1(var, *vec, &shvhed);
 }
