@@ -29,7 +29,13 @@
  * SUCH DAMAGE.
  */
 
+#define __UNCONST(a)	((void *)(unsigned long)(const void *)(a))
+
+#ifdef __linux__
+#include <bsd/sys/cdefs.h>
+#else
 #include <sys/cdefs.h>
+#endif
 #ifndef lint
 #if 0
 static char sccsid[] = "@(#)str.c	8.1 (Berkeley) 5/31/93";
@@ -48,7 +54,11 @@ __RCSID("$NetBSD: str.c,v 1.16 2019/01/05 16:54:00 christos Exp $");
 #include <sys/types.h>
 
 #include <stdarg.h>
+#ifdef __linux__
+#include <bsd/vis.h>
+#else
 #include <vis.h>
+#endif
 
 #include "csh.h"
 #include "extern.h"
