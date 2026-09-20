@@ -1,47 +1,46 @@
 # Makefile for csh
-PROG = csh
-CC = gcc
-OPT = -O2
+PROG := csh
+CC := gcc
+OPT := -O2
 
-CFLAGS = -c \
-	 -Wall \
-	 -DNLS=1 \
-	 -DSHORT_STRINGS=1
+CFLAGS := -c \
+	  -Wall \
+	  -DNLS=1 \
+	  -DSHORT_STRINGS=1
 
-ostype = `uname -s`
+ostype := $(shell uname -s)
 ifeq ($(ostype),Linux)
-	CFLAGS = $(CFLAGS) \
-		 -D_GNU_SOURCE=1 \
-		 `pkg-config --cflags libbsd-overlay`
+	CFLAGS := $(CFLAGS) \
+		  -D_GNU_SOURCE=1
 endif
 
 LIBS =
 ifeq ($(ostype),Linux)
-	LIBS = -lbsd
+	LIBS := -lbsd
 endif
 
-SRC = alloc.c \
-      char.c \
-      const.c \
-      csh.c \
-      dir.c \
-      dol.c \
-      err.c \
-      exec.c \
-      exp.c \
-      func.c \
-      glob.c \
-      hist.c \
-      init.c \
-      lex.c \
-      misc.c \
-      parse.c \
-      proc.c \
-      sem.c \
-      set.c \
-      str.c \
-      time.c
-OBJ = $(SRC:.c=.o)
+SRC := alloc.c \
+       char.c \
+       const.c \
+       csh.c \
+       dir.c \
+       dol.c \
+       err.c \
+       exec.c \
+       exp.c \
+       func.c \
+       glob.c \
+       hist.c \
+       init.c \
+       lex.c \
+       misc.c \
+       parse.c \
+       proc.c \
+       sem.c \
+       set.c \
+       str.c \
+       time.c
+OBJ := $(SRC:.c=.o)
 
 all: const.h $(OBJ)
 	$(CC) -o $(PROG) $(OBJ) $(LIBS)
