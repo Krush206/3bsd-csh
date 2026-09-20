@@ -1,84 +1,141 @@
-/* $NetBSD: alloc.c,v 1.15 2019/01/05 16:54:00 christos Exp $ */
-
-/*-
- * Copyright (c) 1983, 1991, 1993
- *	The Regents of the University of California.  All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- * 3. Neither the name of the University nor the names of its contributors
- *    may be used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- */
-
-#include <sys/cdefs.h>
-#ifndef lint
-#if 0
-static char sccsid[] = "@(#)alloc.c	8.1 (Berkeley) 5/31/93";
-#else
-__RCSID("$NetBSD: alloc.c,v 1.15 2019/01/05 16:54:00 christos Exp $");
-#endif
-#endif /* not lint */
-
-#include <sys/types.h>
-
-#include <unistd.h>
-#include <stdarg.h>
-#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
 
 #include "csh.h"
 #include "extern.h"
 
-void *
-Malloc(size_t n)
-{
-    void *ptr;
+struct Memory (*mem)[MEM_MAX];
+struct Memory *memfree;
 
-    if ((ptr = malloc(n)) == NULL) {
-	child++;
+static struct Memory *memsrch(void *);
+
+void *
+Calloc(size_t n, size_t size)
+{
+    size_t total;
+    void *new;
+
+    if (n > 0 && size > SIZE_MAX / n)
 	stderror(ERR_NOMEM);
-    }
-    return (ptr);
+    total = n * size;
+    if (total == 0)
+	return NULL;
+    if (total >= BUF_MAX)
+	stderror(ERR_NOMEM);
+    new = Malloc(total);
+    if (new == NULL)
+	stderror(ERR_NOMEM);
+    return memset(new, 0, total);
 }
 
 void *
-Realloc(void *p, size_t n)
+Realloc(void *ptr, size_t size)
 {
-    void *ptr;
+    void *new;
+    struct Memory *pool;
 
-    if ((ptr = realloc(p, n)) == NULL) {
-	child++;
-	stderror(ERR_NOMEM);
+    if (size == 0) {
+	Free(ptr);
+	return NULL;
     }
-    return (ptr);
+    if (ptr == NULL)
+	return Malloc(size);
+    new = Malloc(size);
+    if (new == NULL)
+	stderror(ERR_SILENT);
+    pool = memsrch(ptr);
+    if (pool == NULL) {
+	Free(new);
+	stderror(ERR_SILENT);
+    }
+    if (pool->size < size)
+	(void) memcpy(new, ptr, pool->size);
+    else
+	(void) memcpy(new, ptr, size);
+    Free(ptr);
+    return new;
+}
+
+static struct Memory *
+memsrch(void *ptr)
+{
+    int high;
+    int low;
+    uintptr_t memstart;
+    uintptr_t memend;
+    uintptr_t target;
+
+    memstart = (uintptr_t) *mem;
+    memend = (uintptr_t) &(*mem)[MEM_MAX];
+    target = (uintptr_t) ptr;
+    if (target < memstart || target >= memend)
+	return NULL;
+    low = 0;
+    high = MEM_MAX - 1;
+    while (low <= high) {
+	int mid;
+	struct Memory *pool;
+	uintptr_t bufstart;
+	uintptr_t bufend;
+
+	mid = low + (high - low) / 2;
+	pool = &(*mem)[mid];
+	bufstart = (uintptr_t) pool->buf;
+	bufend = bufstart + BUF_MAX;
+	if (target >= bufstart && target < bufend)
+	    return pool;
+	if (target < bufstart)
+	    high = mid - 1;
+	else
+	    low = mid + 1;
+    }
+    return NULL;
 }
 
 void *
-Calloc(size_t s, size_t n)
+Malloc(size_t size)
 {
-    void *ptr;
+    struct Memory *pool;
 
-    if ((ptr = calloc(s, n)) == NULL) {
-	child++;
+    if (size == 0)
+	return NULL;
+    if (size >= BUF_MAX)
 	stderror(ERR_NOMEM);
-    }
-    return (ptr);
+    if (memfree == NULL)
+	stderror(ERR_NOMEM);
+    pool = memfree;
+    memfree = pool->next;
+    pool->use = 1;
+    pool->size = size;
+    return &pool->buf[BUF_MAX - size];
+}
+
+void
+Free(void *ptr)
+{
+    struct Memory *pool;
+
+    if (ptr == NULL)
+	return;
+    pool = memsrch(ptr);
+    if (pool == NULL)
+	stderror(ERR_SILENT);
+    if (!pool->use)
+	return;
+    pool->use = 0;
+    pool->next = memfree;
+    memfree = pool;
+}
+
+void
+showall(Char **v, struct command *c)
+{
+    struct Memory *pool;
+    unsigned int i;
+
+    i = 0;
+    for (pool = *mem; pool < &(*mem)[MEM_MAX]; pool++)
+	if (pool->use)
+	    i++;
+    fprintf(cshout, "%u pools in use.\n", i);
 }
