@@ -29,7 +29,11 @@
  * SUCH DAMAGE.
  */
 
+#ifdef __linux__
+#include <bsd/sys/cdefs.h>
+#else
 #include <sys/cdefs.h>
+#endif
 #ifndef lint
 #if 0
 static char sccsid[] = "@(#)misc.c	8.1 (Berkeley) 5/31/93";
@@ -135,8 +139,8 @@ blkfree(Char **av0)
     if (!av0)
 	return;
     for (; *av; av++)
-	free(* av);
-    free(av0);
+	xfree(* av);
+    xfree(av0);
 }
 
 Char **
@@ -235,7 +239,7 @@ closem(void)
     nofile = FOLDSTD + 1;
     if (fcntl(nofile, F_CLOSEM, 0) == -1)
 #endif
-	nofile = NOFILE;
+	nofile = FOPEN_MAX;
 
     for (f = 0; f < nofile; f++)
 	if (f != SHIN && f != SHOUT && f != SHERR && f != OLDSTD &&
@@ -316,7 +320,7 @@ lshift(Char **v, size_t c)
     Char **u;
 
     for (u = v; *u && c-- > 0; u++)
-	free(*u);
+	xfree(*u);
     (void)blkcpy(v, u);
 }
 
