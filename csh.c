@@ -37,13 +37,22 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <pwd.h>
+#ifdef __linux__
+#include <bsd/stdlib.h>
+#include <bsd/string.h>
+#else
 #include <stdlib.h>
 #include <string.h>
+#endif
 #include <locale.h>
-#include <unistd.h>
+#ifdef __linux__
+#include <bsd/unistd.h>
 #include <bsd/vis.h>
+#else
+#include <unistd.h>
+#include <vis.h>
+#endif
 #include <stdarg.h>
-#include <bsd/stdio.h>
 #include <time.h>
 
 #include "csh.h"
@@ -157,7 +166,7 @@ int    tellwhat = 0;
 extern char **environ;
 
 static int	readf(void *, char *, int);
-static fpos_t	seekf(void *, fpos_t, int);
+static off_t	seekf(void *, off_t, int);
 static int	writef(void *, const char *, int);
 static int	closef(void *);
 static int	srccat(Char *, Char *);
@@ -1298,8 +1307,8 @@ writef(void *oreo, const char *buf, int siz)
     return write(DESC(oreo), buf, siz);
 }
 
-static fpos_t
-seekf(void *oreo, fpos_t off, int whence)
+static off_t
+seekf(void *oreo, off_t off, int whence)
 {
     return lseek(DESC(oreo), off, whence);
 }
