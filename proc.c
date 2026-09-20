@@ -33,9 +33,15 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <errno.h>
+#ifdef __linux__
+#include <bsd/unistd.h>
+#include <bsd/stdlib.h>
+#include <bsd/string.h>
+#else
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#endif
 #include <stdarg.h>
 
 #include "csh.h"
