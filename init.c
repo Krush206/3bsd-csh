@@ -29,7 +29,11 @@
  * SUCH DAMAGE.
  */
 
+#ifdef __linux__
+#include <bsd/sys/cdefs.h>
+#else
 #include <sys/cdefs.h>
+#endif
 #ifndef lint
 #if 0
 static char sccsid[] = "@(#)init.c	8.1 (Berkeley) 5/31/93";
@@ -49,6 +53,7 @@ struct biltins bfunc[] =
 {
     { "@", 		dolet, 		0, INF	},
     { "alias", 		doalias, 	0, INF	},
+    { "alloc",		showall,	0, 0	},
     { "bg", 		dobg, 		0, INF	},
     { "break", 		dobreak, 	0, 0	},
     { "breaksw", 	doswbrk, 	0, 0	},
@@ -68,7 +73,7 @@ struct biltins bfunc[] =
     { "exit", 		doexit, 	0, INF	},
     { "fg", 		dofg, 		0, INF	},
     { "foreach", 	doforeach, 	3, INF	},
-    { "function", 	dofunction, 	1, INF	},
+    { "function",	dofunction,	0, 1	},
     { "glob", 		doglob, 	0, INF	},
     { "goto", 		dogoto, 	1, 1	},
     { "hashstat", 	hashstat, 	0, 0	},
@@ -85,10 +90,10 @@ struct biltins bfunc[] =
     { "notify", 	donotify, 	0, INF	},
     { "onintr", 	doonintr, 	0, 2	},
     { "popd", 		dopopd, 	0, INF	},
-    { "printf",		doprintf,	1, INF	},
     { "pushd", 		dopushd, 	0, INF	},
     { "rehash", 	dohash, 	0, 0	},
     { "repeat", 	dorepeat, 	2, INF	},
+    { "return",		dozip,		0, 0	},
     { "set", 		doset, 		0, INF	},
     { "setenv", 	dosetenv, 	0, 2	},
     { "shift", 		shift, 		0, 1	},
@@ -125,6 +130,7 @@ struct srch srchn[] =
     { "goto", 		T_GOTO		},
     { "if", 		T_IF		},
     { "label", 		T_LABEL		},
+    { "return",		T_RETURN	},
     { "set", 		T_SET		},
     { "switch", 	T_SWITCH	},
     { "while", 		T_WHILE		}
