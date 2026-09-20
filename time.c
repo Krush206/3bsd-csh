@@ -29,7 +29,11 @@
  * SUCH DAMAGE.
  */
 
+#ifdef __linux__
+#include <bsd/sys/cdefs.h>
+#else
 #include <sys/cdefs.h>
+#endif
 #ifndef lint
 #if 0
 static char sccsid[] = "@(#)time.c	8.1 (Berkeley) 5/31/93";
@@ -44,7 +48,12 @@ __RCSID("$NetBSD: time.c,v 1.23 2020/10/17 08:46:02 mlelstv Exp $");
 #include "csh.h"
 #include "extern.h"
 #endif
-#include <util.h>
+#ifdef __linux__
+#include <bsd/libutil.h>
+#else
+#include <libutil.h>
+#endif
+#include <time.h>
 
 /*
  * C Shell - routines handling process timing and niceing
@@ -189,14 +198,9 @@ prusage1(FILE *fp, const char *cp, int prec,
 		break;
 	    case 'P':		/* percent time spent running */
 		/* check if it did not run at all */
-		if (ms == 0) {
-			(void)fputs("0.0%", fp);
-		} else {
-			char pb[32];
-			(void)fputs(strpct(pb, sizeof(pb),
-			    (uintmax_t)t, (uintmax_t)ms, 1), fp);
-			(void)fputc('%', fp);
-		}
+		i = (ms == 0) ? 0 : ((long long)t * 1000 / ms);
+		/* nn.n% */
+		(void) fprintf(cshout, "%ld.%01ld%%", i / 10, i % 10);
 		break;
 	    case 'R':		/* page reclaims */
 		(void)fprintf(fp, "%ld", r1->ru_minflt - r0->ru_minflt);
