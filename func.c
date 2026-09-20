@@ -34,9 +34,15 @@
 #include <sys/stat.h>
 #include <signal.h>
 #include <locale.h>
+#ifdef __linux__
+#include <bsd/stdlib.h>
+#include <bsd/string.h>
+#include <bsd/unistd.h>
+#else
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#endif
 #include <stdarg.h>
 
 #include "csh.h"
