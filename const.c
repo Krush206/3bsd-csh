@@ -29,7 +29,11 @@
  * SUCH DAMAGE.
  */
 
+#ifdef __linux__
+#include <bsd/sys/cdefs.h>
+#else
 #include <sys/cdefs.h>
+#endif
 #ifndef lint
 #if 0
 static char sccsid[] = "@(#)const.c	8.1 (Berkeley) 5/31/93";
@@ -163,3 +167,4 @@ Char STRunalias[]       = { 'u', 'n', 'a', 'l', 'i', 'a', 's', '\0' };
 Char STRuser[]          = { 'u', 's', 'e', 'r', '\0' };
 Char STRverbose[]       = { 'v', 'e', 'r', 'b', 'o', 's', 'e', '\0' };
 Char STRwordchars[]	= { 'w', 'o', 'r', 'd', 'c', 'h', 'a', 'r', 's', '\0' };
+Char STRsemi[]		= { ';', '\0' };
