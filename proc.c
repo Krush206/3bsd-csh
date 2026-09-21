@@ -762,12 +762,12 @@ pendjob(void)
  * pprint - print a job
  */
 static int
-pprint(struct process *pp, bool flag)
+pprint(struct process *pp, int flag)
 {
     int status, reason;
     struct process *tp;
     int     jobflags, pstatus;
-    bool hadnl = 1;	/* did we just have a newline */
+    int hadnl = 1;	/* did we just have a newline */
     char   *format;
 
     (void) fpurge(cshout);
@@ -1242,7 +1242,7 @@ pstart(struct process *pp, int foregnd)
 }
 
 void
-panystop(bool neednl)
+panystop(int neednl)
 {
     struct process *pp;
 
@@ -1352,7 +1352,7 @@ int
 pfork(struct command *t, int wanttty)
 {
     int pid;
-    bool    ignint = 0;
+    int    ignint = 0;
     int     pgrp;
     sigset_t sigset, osigset;
 
