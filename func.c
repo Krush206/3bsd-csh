@@ -62,6 +62,10 @@ static int	keyword(Char *);
 static void	toend(void);
 static void	xecho(int, Char **);
 static void	Unsetenv(Char *);
+static void	bufclean(void *);
+static void	blkclean(void *);
+static int	srchenc(struct CommandList *);
+static int	getwhole(Char *);
 
 struct biltins *
 isbfunc(struct command *t)
@@ -256,6 +260,13 @@ doif(Char **v, struct command *kp)
 	if (*++vv)
 	    stderror(ERR_NAME | ERR_IMPRTHEN);
 	setname(vis_str(STRthen));
+	if (kp->t_dflg & F_LINE) {
+	    struct CommandList *ptr;
+
+	    ptr = retlist(kp);
+	    ptr->enc->ret = ptr->ret = i;
+	    return;
+	}
 	/*
 	 * If expression was zero, then scan to else, otherwise just fall into
 	 * following code.
@@ -296,6 +307,8 @@ void
 /*ARGSUSED*/
 doelse(Char **v, struct command *t)
 {
+    if (t->t_dflg & F_LINE)
+	return;
     search(T_ELSE, 0, NULL);
 }
 
@@ -346,7 +359,16 @@ doswitch(Char **v, struct command *t)
 	v--;
     if (*v)
 	stderror(ERR_SYNTAX);
-    search(T_SWITCH, 0, lp = globone(cp, G_ERROR));
+    lp = globone(cp, G_ERROR);
+    if (t->t_dflg & F_LINE) {
+	struct CommandList *ptr;
+
+	ptr = retlist(t);
+	xfree((ptr_t) ptr->label);
+	ptr->label = Strsave(lp);
+    }
+    else
+	search(T_SWITCH, 0, lp);
     xfree((ptr_t) lp);
 }
 
@@ -354,6 +376,14 @@ void
 /*ARGSUSED*/
 dobreak(Char **v, struct command *t)
 {
+    if (t != NULL && t->t_dflg & F_LINE) {
+	struct CommandList *ptr;
+
+	ptr = retlist(t);
+	if (!srchenc(ptr))
+	    stderror(ERR_NAME | ERR_NOTWHILE);
+	return;
+    }
     if (whyles)
 	toend();
     else
@@ -405,6 +435,14 @@ doforeach(Char **v, struct command *t)
     v = globall(v);
     if (v == 0)
 	stderror(ERR_NAME | ERR_NOMATCH);
+    if (t->t_dflg & F_LINE) {
+	struct CommandList *ptr;
+
+	ptr = retlist(t);
+	ptr->vec = ptr->vec0 = ptr->enc->vec = ptr->enc->vec0 = v;
+	ptr->name = ptr->enc->name = Strsave(cp);
+	return;
+    }
     nwp = (struct whyle *) xcalloc(1, sizeof *nwp);
     nwp->w_fe = nwp->w_fe0 = v;
     gargv = 0;
@@ -435,12 +473,19 @@ dowhile(Char **v, struct command *t)
      * Implement prereading here also, taking care not to evaluate the
      * expression before the loop has been read up from a terminal.
      */
-    if (intty && !again)
+    if (intty && !again && (t->t_dflg & F_LINE) == 0)
 	status = !exp0(&v, 1);
     else
 	status = !expr(&v);
     if (*v)
 	stderror(ERR_NAME | ERR_EXPRESSION);
+    if (t->t_dflg & F_LINE) {
+	struct CommandList *ptr;
+
+	ptr = retlist(t);
+	ptr->enc->ret = ptr->ret = status;
+	return;
+    }
     if (!again) {
 	struct whyle *nwp =
 	(struct whyle *) xcalloc(1, sizeof(*nwp));
@@ -487,6 +532,14 @@ void
 /*ARGSUSED*/
 doend(Char **v, struct command *t)
 {
+    if (t->t_dflg & F_LINE) {
+	struct CommandList *ptr;
+
+	ptr = retlist(t);
+	if (ptr->enc == NULL)
+	    stderror(ERR_NAME | ERR_NOTWHILE);
+	return;
+    }
     if (!whyles)
 	stderror(ERR_NAME | ERR_NOTWHILE);
     btell(&whyles->w_end);
@@ -497,6 +550,14 @@ void
 /*ARGSUSED*/
 docontin(Char **v, struct command *t)
 {
+    if (t->t_dflg & F_LINE) {
+	struct CommandList *ptr;
+
+	ptr = retlist(t);
+	if (!srchenc(ptr))
+	    stderror(ERR_NAME | ERR_NOTWHILE);
+	return;
+    }
     if (!whyles)
 	stderror(ERR_NAME | ERR_NOTWHILE);
     doagain();
@@ -551,6 +612,8 @@ void
 /*ARGSUSED*/
 doswbrk(Char **v, struct command *t)
 {
+    if (t->t_dflg & F_LINE)
+	return;
     search(T_BRKSW, 0, NULL);
 }
 
@@ -756,6 +819,9 @@ past:
     case T_GOTO:
 	setname(vis_str(Sgoal));
 	stderror(ERR_NAME | ERR_NOTFOUND, "label");
+    case T_RETURN:
+	setname(vis_str(Sgoal));
+	stderror(ERR_NAME | ERR_NOTFOUND, "return");
     }
     /* NOTREACHED */
     return (0);
@@ -1418,4 +1484,132 @@ doeval(Char **v, struct command *t)
     gv = savegv;
     if (my_reenter)
 	stderror(ERR_SILENT);
+}
+
+static struct BufferList buftmp = { { 0 }, &buftmp, &buftmp };
+static struct BufferList *bufptr;
+
+void
+dofunction(Char **v, struct command *c)
+{
+    jmp_buf_t oldexit[2];
+    struct BufferList *new;
+    Char *p;
+    Char *blk[BUFSIZ];
+    int i;
+
+    if (*++v == NULL) {
+	plist(&aliases);
+	return;
+    }
+    Sgoal = *v;
+    Stype = T_RETURN;
+    if (!letter(*Sgoal))
+	stderror(ERR_NAME | ERR_FNBEGIN);
+    p = Sgoal;
+    while (*++p)
+	if (!alnum(*p))
+	    stderror(ERR_NAME | ERR_FNALNUM);
+    cleanup_push(&oldexit[0], bufclean, &buftmp);
+    bufptr = &buftmp;
+    do {
+	new = xmalloc(sizeof *new);
+	new->next = &buftmp;
+	buftmp.prev = bufptr = bufptr->next = new;
+	new->buf[0] = 0;
+    } while (!getwhole(new->buf));
+    blk[0] = Strsave(STRLparen);
+    blk[1] = NULL;
+    cleanup_push(&oldexit[1], blkclean, blk);
+    i = 1;
+    for (new = buftmp.next; new != &buftmp; new = new->next) {
+	if (i + 2 >= BUFSIZ)
+	    stderror(ERR_WTOOLONG);
+	blk[i++] = quote(Strsave(new->buf));
+	blk[i++] = Strsave(STRsemi);
+    }
+    if (i + 1 >= BUFSIZ)
+	stderror(ERR_WTOOLONG);
+    blk[i++] = Strsave(STRRparen);
+    blk[i] = NULL;
+    set1(strip(Sgoal), saveblk(blk), &aliases);
+    cleanup_pop(&oldexit[1]);
+    cleanup_pop(&oldexit[0]);
+}
+
+static int
+getwhole(Char *buf)
+{
+    Char word[BUFSIZ];
+
+    word[0] = 0;
+    if (intty && fseekp == feobp && aret == F_SEEK)
+	(void) fprintf(cshout, "? "), (void) fflush(cshout);
+    (void) getword(word);
+    if (srchx(word) == T_RETURN) {
+	(void) Strlcat(buf, word, BUFSIZ);
+	(void) getword(NULL);
+	return 1;
+    }
+    do {
+	(void) Strlcat(buf, word, BUFSIZ);
+	(void) Strlcat(buf, STRspace, BUFSIZ);
+    } while (getword(word));
+    buf[Strlen(buf) - 1] = 0;
+    (void) getword(NULL);
+    return 0;
+}
+
+struct CommandList *
+retlist(struct command *t)
+{
+    struct CommandList *ptr;
+
+    ptr = fnptr;
+    while (ptr->t != t)
+        ptr = ptr->next;
+    return ptr;
+}
+
+static int
+srchenc(struct CommandList *lp)
+{
+    struct CommandList *ptr;
+
+    for (ptr = lp; ptr != &fntmp; ptr = ptr->prev)
+        switch (ptr->type) {
+        case T_WHILE:
+            return 1;
+        case T_FOREACH:
+            return 2;
+        }
+    return 0;
+}
+
+static void
+blkclean(void *xblk)
+{
+    Char **blk;
+
+    blk = xblk;
+    while (*blk != NULL)
+	xfree((ptr_t) *blk++);
+}
+
+static void
+bufclean(void *xbuf)
+{
+    struct BufferList *buf;
+    struct BufferList *ptr;
+
+    buf = xbuf;
+    ptr = buf->next;
+    buf->next = buf->prev = buf;
+    while (ptr != buf) {
+	struct BufferList *tmp;
+
+	tmp = ptr;
+	ptr = ptr->next;
+	xfree((ptr_t) tmp);
+    }
 }
