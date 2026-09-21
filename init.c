@@ -41,7 +41,7 @@ struct biltins bfunc[] =
 {
     { "@", 		dolet, 		0, INF	},
     { "alias", 		doalias, 	0, INF	},
-    { "alloc", 		showall, 	0, 1	},
+    { "alloc", 		showall, 	0, 0	},
     { "bg", 		dobg, 		0, INF	},
     { "break", 		dobreak, 	0, 0	},
     { "breaksw", 	doswbrk, 	0, 0	},
@@ -80,6 +80,7 @@ struct biltins bfunc[] =
     { "pushd", 		dopushd, 	0, INF	},
     { "rehash", 	dohash, 	0, 0	},
     { "repeat", 	dorepeat, 	2, INF	},
+    { "return",		dozip,		0, 0	},
     { "set", 		doset, 		0, INF	},
     { "setenv", 	dosetenv, 	0, 2	},
     { "shift", 		shift, 		0, 1	},
@@ -116,6 +117,7 @@ struct srch srchn[] =
     { "goto", 		T_GOTO		},
     { "if", 		T_IF		},
     { "label", 		T_LABEL		},
+    { "return",		T_RETURN	},
     { "set", 		T_SET		},
     { "switch", 	T_SWITCH	},
     { "while", 		T_WHILE		}
