@@ -75,7 +75,7 @@ doset(Char **v, struct command *t)
     Char *p;
     Char   *vp, op;
     Char  **vecp;
-    bool    hadsub;
+    int    hadsub;
     int     subscr;
     int pipe;
 
@@ -261,7 +261,7 @@ dolet(Char **v, struct command *t)
 {
     Char *p;
     Char   *vp, c, op;
-    bool    hadsub;
+    int    hadsub;
     int     subscr;
 
     v++;
