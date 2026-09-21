@@ -129,9 +129,11 @@ execute(struct command *t, int wanttty, int *pipein, int *pipeout)
     if (t == 0)
 	return;
 
+    list(t);
     if (t->t_dflg & F_AMPERSAND)
 	wanttty = 0;
     switch (t->t_dtyp) {
+	struct CommandList *ptr;
 
     case NODE_COMMAND:
 	if ((t->t_dcom[0][0] & (QUOTE | TRIM)) == QUOTE)
