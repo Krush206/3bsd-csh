@@ -1350,7 +1350,7 @@ doeval(Char **v, struct command *t)
     Char  **oevalvec;
     Char   *oevalp;
     int     odidfds;
-    jmp_buf osetexit;
+    jmp_buf_t osetexit;
     int     my_reenter;
     Char  **savegv = gv;
     int     saveIN;
@@ -1390,7 +1390,7 @@ doeval(Char **v, struct command *t)
     saveOUT = dcopy(SHOUT, -1);
     saveERR = dcopy(SHERR, -1);
 
-    getexit(osetexit);
+    getexit(&osetexit);
 
     if ((my_reenter = setexit()) == 0) {
 	evalvec = v;
@@ -1414,7 +1414,7 @@ doeval(Char **v, struct command *t)
     SHERR = dmove(saveERR, oSHERR);
     if (gv)
 	blkfree(gv), gv = NULL;
-    resexit(osetexit);
+    resexit(&osetexit);
     gv = savegv;
     if (my_reenter)
 	stderror(ERR_SILENT);
