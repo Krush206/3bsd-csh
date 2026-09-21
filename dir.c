@@ -616,7 +616,7 @@ dcanon(Char *cp, Char *p)
 {
     Char *sp;
     Char *p1, *p2;	/* general purpose */
-    bool    slash;
+    int    slash;
 
     Char    link[MAXPATHLEN];
     char    tlink[MAXPATHLEN];
