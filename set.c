@@ -33,8 +33,10 @@
 #include <sys/types.h>
 #ifdef __linux__
 #include <bsd/stdlib.h>
+#include <bsd/unistd.h>
 #else
 #include <stdlib.h>
+#include <unistd.h>
 #endif
 #ifndef SHORT_STRINGS
 #ifdef __linux__
@@ -75,6 +77,7 @@ doset(Char **v, struct command *t)
     Char  **vecp;
     bool    hadsub;
     int     subscr;
+    int pipe;
 
     v++;
     p = *v++;
@@ -82,7 +85,13 @@ doset(Char **v, struct command *t)
 	prvars();
 	return;
     }
+    pipe = 0;
+    if (t->t_dlef || !isatty(0))
+	pipe = 1;
     do {
+	Char arr[2];
+	Char copy[BUFSIZ];
+
 	hadsub = 0;
 	vp = p;
 	if (letter(*p))
@@ -129,10 +138,45 @@ doset(Char **v, struct command *t)
 	    *e = p;
 	    v = e + 1;
 	}
-	else if (hadsub)
-	    asx(vp, subscr, Strsave(p));
-	else
-	    set(vp, Strsave(p));
+	else if (hadsub) {
+	    Char *new;
+
+	    if (pipe) {
+		arr[1] = copy[0] = 0;
+		while (read(0, arr, 1) > 0)
+		    (void) Strlcat(copy, arr, BUFSIZ);
+		new = quote(Strsave(copy));
+	    }
+	    else
+		new = Strsave(p);
+	    asx(vp, subscr, new);
+	}
+	else {
+	    if (pipe) {
+		int empty;
+
+		empty = 1;
+		arr[1] = copy[0] = 0;
+		while (read(0, arr, 1) > 0) {
+		    if (arr[0] == '\n') {
+			empty = 0;
+			break;
+		    }
+		    (void) Strlcat(copy, arr, BUFSIZ);
+		}
+		if (empty && Strlen(copy) == 0) {
+		    Char **empty;
+
+		    empty = xmalloc(sizeof *empty);
+		    *empty = NULL;
+		    set1(vp, empty, &shvhed);
+		}
+		else
+		    setv(vp, quote(Strsave(copy)));
+	    }
+	    else
+		set(vp, Strsave(p));
+	}
 	if (eq(vp, STRpath)) {
 	    exportpath(adrof(STRpath)->vec);
 	    dohash(NULL, NULL);
