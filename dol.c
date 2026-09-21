@@ -215,8 +215,8 @@ Dword(void)
     Char    wbuf[BUFSIZ];
     Char *wp = wbuf;
     int i = MAXWLEN;
-    bool dolflg;
-    bool    sofar = 0, done = 0;
+    int dolflg;
+    int    sofar = 0, done = 0;
 
     while (!done) {
 	done = 1;
@@ -395,7 +395,7 @@ Dgetdol(void)
     Char    name[4 * MAXVARLEN + 1];
     int     c, sc;
     int     subscr = 0, lwb = 1, upb = 0;
-    bool    dimen = 0, bitset = 0;
+    int    dimen = 0, bitset = 0;
     char    tnp;
     Char    wbuf[BUFSIZ];
     static Char *dolbang = NULL;
@@ -846,7 +846,7 @@ heredoc(Char *term)
     int     ocnt, lcnt, mcnt;
     Char *lbp, *obp, *mbp;
     Char  **vp;
-    bool    quoted;
+    int    quoted;
     char   tmp[] = "/tmp/sh.XXXXXXXX";
 
     if (mkstemp(tmp) < 0)
