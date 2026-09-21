@@ -408,6 +408,7 @@ doexit(Char **v, struct command *t)
     btoeof();
     if (intty)
 	(void) close(SHIN);
+    doneinp = 1;
 }
 
 void
