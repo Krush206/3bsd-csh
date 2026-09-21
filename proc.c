@@ -194,7 +194,6 @@ pchild(int notused)
     struct process *pp;
     struct process *fp;
     int pid;
-    extern int insource;
     int save_errno = errno;
     int w;
     int     jobflags;
