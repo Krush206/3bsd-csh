@@ -74,20 +74,20 @@ extern int hleft;
 void
 alias(struct wordent *lex)
 {
-    jmp_buf osetexit;
+    jmp_buf_t osetexit;
 
     aleft = ALEFT;
     hleft = HLEFT;
-    getexit(osetexit);
+    getexit(&osetexit);
     (void) setexit();
     if (haderr) {
-	resexit(osetexit);
+	resexit(&osetexit);
 	reset();
     }
     if (--aleft == 0)
 	stderror(ERR_ALIASLOOP);
     asyntax(lex->next, lex);
-    resexit(osetexit);
+    resexit(&osetexit);
 }
 
 static void
