@@ -175,6 +175,7 @@ static void	phup(int);
 static void	srcunit(int, bool, bool);
 static void	mailchk(void);
 static Char   **defaultpath(void);
+static void	xballoc(void);
 
 int
 main(int argc, char *argv[])
@@ -190,6 +191,7 @@ main(int argc, char *argv[])
     cshout = stdout;
     csherr = stderr;
 
+    xballoc();
     settimes();			/* Immed. estab. timing base */
 
     /*
@@ -1415,4 +1417,20 @@ printprompt(void)
 	 */
 	(void) fprintf(cshout, "? ");
     (void) fflush(cshout);
+}
+
+static void
+xballoc(void)
+{
+    int i;
+
+    mem = malloc(sizeof *mem);
+    if (mem == NULL)
+	stderror(ERR_NOMEM);
+    for (i = 0; i < MEM_MAX; i++) {
+	(*mem)[i].use = 0;
+	(*mem)[i].size = 0;
+	(*mem)[i].next = memfree;
+	memfree = &(*mem)[i];
+    }
 }
