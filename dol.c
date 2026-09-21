@@ -409,6 +409,7 @@ Dgetdol(void)
     else if (c == '?')
 	bitset++, c = DgetC(0);	/* $? tests existence */
     switch (c) {
+	static Char peekc;
 
     case '!':
 	if (dimen || bitset)
@@ -427,8 +428,17 @@ Dgetdol(void)
 	goto eatbrac;
 
     case '<' | QUOTE:
-	if (bitset)
-	    stderror(ERR_NOTALLOWED, "$?<");
+	if (bitset) {
+	    if (isatty(OLDSTD) || peekc)
+		setDolp(STR1);
+	    else if (read(OLDSTD, &c, 1) > 0) {
+		peekc = c;
+		setDolp(STR1);
+	    }
+	    else
+		setDolp(STR0);
+	    goto eatbrac;
+	}
 	if (dimen)
 	    stderror(ERR_NOTALLOWED, "$?#");
 	for (np = wbuf; read(OLDSTD, &tnp, 1) == 1; np++) {
@@ -448,6 +458,12 @@ Dgetdol(void)
 	 */
 	dolmod[dolnmod++] = 'q';
 	dolmcnt = 10000;
+	if (peekc) {
+	    c = peekc;
+	    peekc = 0;
+	    if (c != ('\n' | QUOTE))
+		unDgetC(c);
+	}
 	setDolp(wbuf);
 	goto eatbrac;
 
