@@ -84,10 +84,10 @@ typedef void *ptr_t;
 #include "char.h"
 #include "error.h"
 
-#define xmalloc(i)	Malloc(i)
-#define xrealloc(p, i)	Realloc(p, i)
-#define xcalloc(n, s)	Calloc(n, s)
-#define xfree(p)	Free(p)
+#define xmalloc Malloc
+#define xrealloc Realloc
+#define xcalloc Calloc
+#define xfree Free
 
 #ifdef __linux__
 #include <bsd/stdio.h>
@@ -183,14 +183,45 @@ extern int   OLDSTD;			/* Old standard input (def for cmds) */
  */
 
 #include <setjmp.h>
-extern jmp_buf reslab;
+typedef struct {
+    jmp_buf jmp;
+    void *ptr;
+    void (*fn)(void *);
+} jmp_buf_t;
+extern jmp_buf_t reslab;
 extern int exitset;
 
-#define	setexit()	(setjmp(reslab))
-#define	reset()		longjmp(reslab, 1)
+#define	setexit()	(setjmp(reslab.jmp))
+#define	reset()		longjmp(reslab.jmp, 1)
  /* Should use structure assignment here */
-#define	getexit(a)	memcpy((a), reslab, sizeof reslab)
-#define	resexit(a)	memcpy(reslab, (a), sizeof reslab)
+#define	getexit(a)	memcpy((a), &reslab, sizeof reslab)
+#define	resexit(a)	memcpy(&reslab, (a), sizeof reslab)
+#define cleanup_push(saved, dispose, resource)			\
+getexit(saved);							\
+reslab.fn = (dispose);						\
+reslab.ptr = (resource);					\
+if (setexit() != 0) {						\
+    void *cleanup_ptr;						\
+    void (*cleanup_fn)(void *);					\
+								\
+    cleanup_ptr = reslab.ptr;					\
+    cleanup_fn = reslab.fn;					\
+    resexit(saved);						\
+    if (cleanup_fn != NULL)					\
+	cleanup_fn(cleanup_ptr);				\
+    reset();							\
+} (void) 0
+#define cleanup_pop(saved)					\
+{								\
+    void *cleanup_ptr;						\
+    void (*cleanup_fn)(void *);					\
+								\
+    cleanup_ptr = reslab.ptr;					\
+    cleanup_fn = reslab.fn;					\
+    resexit(saved);						\
+    if (cleanup_fn != NULL)					\
+	cleanup_fn(cleanup_ptr);				\
+} (void) 0
 
 extern Char   *gointr;			/* Label for an onintr transfer */
 
@@ -549,3 +580,42 @@ extern Char   *STR_BSHELL;
 #endif
 extern Char   *STR_WORD_CHARS;
 extern Char  **STR_environ;
+
+#define MEM_MAX (128 * 4)
+#define BUF_MAX (1024 * 16)
+
+/*
+ * One-line command parsing structure.
+ */
+struct CommandList {
+    struct command *t;
+    struct CommandList *next;
+    struct CommandList *prev;
+    struct CommandList *enc;
+    int type;
+    int ret;
+    Char *label;
+    Char *name;
+    Char **vec0;
+    Char **vec;
+    Char **sav;
+};
+
+struct BufferList {
+    Char buf[BUFSIZ];
+    struct BufferList *next;
+    struct BufferList *prev;
+};
+
+struct Memory {
+    size_t size;
+    int use;
+    unsigned char buf[BUF_MAX];
+    struct Memory *next;
+};
+
+extern struct CommandList fntmp;
+extern struct CommandList *fnptr;
+
+extern struct Memory (*mem)[MEM_MAX];
+extern struct Memory *memfree;
