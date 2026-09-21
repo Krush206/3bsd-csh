@@ -110,7 +110,7 @@ static void	 chkclob(char *);
 void
 execute(struct command *t, int wanttty, int *pipein, int *pipeout)
 {
-    bool    forked = 0;
+    int    forked = 0;
     struct biltins *bifunc;
     int     pid = 0;
     int     pv[2];
@@ -347,7 +347,7 @@ execute(struct command *t, int wanttty, int *pipein, int *pipeout)
 		else {		/* child */
 		    /* this is from pfork() */
 		    int     pgrp;
-		    bool    ignint = 0;
+		    int    ignint = 0;
 
 		    if (nosigchld) {
 			sigprocmask(SIG_SETMASK, &csigset, NULL);
