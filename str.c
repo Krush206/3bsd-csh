@@ -417,7 +417,11 @@ vis_str(Char *cp)
      * XXX: When we are in AsciiOnly we want all characters >= 0200 to
      * be encoded, but currently there is no way in vis to do that.
      */
+#ifdef __linux__
+    (void) strnvis(sdst, short2str(cp), dstsize, VIS_NOSLASH);
+#else
     (void) strnvis(sdst, dstsize, short2str(cp), VIS_NOSLASH);
+#endif
     return (sdst);
 }
 
