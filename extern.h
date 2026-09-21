@@ -280,6 +280,7 @@ void	 unsetv(Char *);
 void	 setNS(Char *);
 void	 shift(Char **, struct command *);
 void	 plist(struct varent *);
+void	 setv(Char *, Char *);
 
 /*
  * time.c
