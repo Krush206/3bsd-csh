@@ -657,6 +657,7 @@ freesyn(struct command *t)
 	break;
     case NODE_PAREN:
 	freesyn(t->t_dspr);
+	xfree((ptr_t) t->t_dcom);
 	xfree((ptr_t) t->t_dlef);
 	xfree((ptr_t) t->t_drit);
 	break;
