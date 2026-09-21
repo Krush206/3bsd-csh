@@ -112,7 +112,7 @@ int   SHIN;			/* Current shell input (script) */
 int   SHOUT;			/* Shell output */
 int   SHERR;			/* Diagnostic output... shell errs go here */
 int   OLDSTD;			/* Old standard input (def for cmds) */
-jmp_buf reslab;
+jmp_buf_t reslab;
 int exitset;
 Char   *gointr;			/* Label for an onintr transfer */
 sig_t parintr;			/* Parents interrupt catch */
@@ -753,7 +753,7 @@ srcunit(int unit, bool onlyown, bool hflg)
 
     struct Bin saveB;
     sigset_t sigset, osigset;
-    jmp_buf oldexit;
+    jmp_buf_t oldexit;
 
     /* The (few) real local variables */
     int     my_reenter;
@@ -782,7 +782,7 @@ srcunit(int unit, bool onlyown, bool hflg)
      * efficient globally on many variable references however.
      */
     insource = 1;
-    getexit(oldexit);
+    getexit(&oldexit);
 
     if (setintr) {
 	sigemptyset(&sigset);
@@ -836,7 +836,7 @@ srcunit(int unit, bool onlyown, bool hflg)
 	cantell = otell;
     }
 
-    resexit(oldexit);
+    resexit(&oldexit);
     /*
      * If process reset() (effectively an unwind) then we must also unwind.
      */
@@ -1053,12 +1053,12 @@ static struct command *savet = NULL;
 void
 process(bool catch)
 {
-    jmp_buf osetexit;
+    jmp_buf_t osetexit;
     struct command *t = savet;
     sigset_t sigset;
 
     savet = NULL;
-    getexit(osetexit);
+    getexit(&osetexit);
     for (;;) {
 	pendjob();
 	paraml.next = paraml.prev = &paraml;
@@ -1086,7 +1086,7 @@ process(bool catch)
 	    if (!catch) {
 		/* unwind */
 		doneinp = 0;
-		resexit(osetexit);
+		resexit(&osetexit);
 		savet = t;
 		reset();
 	    }
@@ -1179,7 +1179,7 @@ process(bool catch)
 	freelex(&paraml);
 	freesyn((struct command *) savet), savet = NULL;
     }
-    resexit(osetexit);
+    resexit(&osetexit);
     savet = t;
 }
 
