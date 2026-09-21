@@ -124,6 +124,7 @@ extern int    pjobs;			/* want to print jobs if interrupted */
 extern int    setintr;		/* Set interrupts on/off -> Wait intr... */
 extern int    timflg;			/* Time the next waited for command */
 extern int    havhash;		/* path hashing is available */
+extern int    insource;
 
 #ifdef FILEC
 extern int    filec;			/* doing filename expansion */
