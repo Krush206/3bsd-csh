@@ -14,7 +14,7 @@ ifeq ($(ostype),Linux)
 		  -D_GNU_SOURCE=1
 endif
 
-LIBS =
+LIBS :=
 ifeq ($(ostype),Linux)
 	LIBS := -lbsd
 endif
@@ -49,7 +49,7 @@ all: const.h $(OBJ)
 %.o: %.c
 	$(CC) $(OPT) $(CFLAGS) $<
 
-clean: 
+clean:
 	rm -f error.h const.h ./*.o ./$(PROG)
 
 error.h: error.c
