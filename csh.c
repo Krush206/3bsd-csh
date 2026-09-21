@@ -1173,6 +1173,8 @@ process(bool catch)
 	if (seterr)
 	    stderror(ERR_OLD);
 
+	if (setintr)
+	    (void) sigprocmask(SIG_UNBLOCK, &sigset, NULL);
 	execute(savet, (tpgrp > 0 ? tpgrp : -1), NULL, NULL);
 
 	/*
