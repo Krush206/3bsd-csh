@@ -32,7 +32,11 @@
  *	@(#)extern.h	8.1 (Berkeley) 5/31/93
  */
 
+#ifdef __linux__
+#include <bsd/sys/cdefs.h>
+#else
 #include <sys/cdefs.h>
+#endif
 
 /*
  * csh.c
