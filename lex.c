@@ -424,11 +424,11 @@ getdol(void)
     *np++ = c;
     switch (c) {
 
-    case '<':
     case '$':
     case '!':
 	if (special)
 	    seterror(ERR_SPDOLLT);
+    case '<':
 	*np = 0;
 	addla(name);
 	return;
