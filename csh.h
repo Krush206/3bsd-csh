@@ -367,6 +367,7 @@ struct command {
 #define	F_NICE		(1<<11)	/* t_nice is meaningful 	 */
 #define	F_NOHUP		(1<<12)	/* nohup this command 		 */
 #define	F_TIME		(1<<13)	/* time this command 		 */
+#define	F_LINE		(1<<14) /* one-line command parsing	 */
     union {
 	Char   *T_dlef;		/* Input redirect word 		 */
 	struct command *T_dcar;	/* Left part of list/pipe 	 */
