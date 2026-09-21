@@ -78,10 +78,10 @@ struct CommandList *dolptr = &doltmp;
 
 static void fnlist(struct command *);
 static void fnalloc(struct command *);
-static void fnexec(struct CommandList **, struct CommandList *, volatile int);
+static void fnexec(struct CommandList **, struct CommandList *, int);
 static void pline(struct CommandList *);
-static void wlexec(struct CommandList **, volatile int);
-static void feexec(struct CommandList **, volatile int);
+static void wlexec(struct CommandList **, int);
+static void feexec(struct CommandList **, int);
 static void search(struct CommandList *);
 static struct CommandList *search1(struct CommandList *, int);
 static struct CommandList *search2(struct CommandList *, int);
@@ -495,6 +495,8 @@ execute(struct command *t, int wanttty, int *pipein, int *pipeout)
 		(t->t_dtyp == NODE_AND))
 		return;
 	}
+	if (doneinp)
+	    break;
 	if (t->t_dcdr) {
 	    t->t_dcdr->t_dflg |= t->t_dflg &
 		(F_NOFORK | F_NOINTERRUPT);
@@ -728,7 +730,7 @@ fnalloc(struct command *t)
 static void
 fnexec(struct CommandList **lp,
        struct CommandList *hp,
-       volatile int wtty)
+       int wtty)
 {
     struct CommandList *ptr;
     jmp_buf_t oldexit;
@@ -786,7 +788,7 @@ pline(struct CommandList *lp)
 }
 
 static void
-wlexec(struct CommandList **lp, volatile int wtty)
+wlexec(struct CommandList **lp, int wtty)
 {
     struct CommandList *top;
     struct CommandList *end;
@@ -811,7 +813,7 @@ wlexec(struct CommandList **lp, volatile int wtty)
 }
 
 static void
-feexec(struct CommandList **lp, volatile int wtty)
+feexec(struct CommandList **lp, int wtty)
 {
     struct CommandList *ptr;
     struct CommandList *end;
