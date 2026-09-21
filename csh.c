@@ -170,9 +170,9 @@ static off_t	seekf(void *, off_t, int);
 static int	writef(void *, const char *, int);
 static int	closef(void *);
 static int	srccat(Char *, Char *);
-static int	srcfile(char *, bool, bool);
+static int	srcfile(char *, int, int);
 static void	phup(int);
-static void	srcunit(int, bool, bool);
+static void	srcunit(int, int, int);
 static void	mailchk(void);
 static Char   **defaultpath(void);
 static void	xballoc(void);
@@ -721,7 +721,7 @@ srccat(Char *cp, Char *dp)
  * Source to a file putting the file descriptor in a safe place (> 2).
  */
 static int
-srcfile(char *f, bool onlyown, bool flag)
+srcfile(char *f, int onlyown, int flag)
 {
     int unit;
 
@@ -740,7 +740,7 @@ srcfile(char *f, bool onlyown, bool flag)
  */
 int     insource;
 static void
-srcunit(int unit, bool onlyown, bool hflg)
+srcunit(int unit, int onlyown, int hflg)
 {
     /* We have to push down a lot of state here */
     /* All this could go into a structure */
@@ -749,9 +749,9 @@ srcunit(int unit, bool onlyown, bool hflg)
     Char   *ogointr = gointr, *oarginp = arginp;
     Char   *oevalp = evalp, **oevalvec = evalvec;
     int     oonelflg = onelflg;
-    bool    oenterhist = enterhist;
+    int    oenterhist = enterhist;
     char    OHIST = HIST;
-    bool    otell = cantell;
+    int    otell = cantell;
 
     struct Bin saveB;
     sigset_t sigset, osigset;
@@ -993,7 +993,7 @@ pintr(int notused)
 }
 
 void
-pintr1(bool wantnl)
+pintr1(int wantnl)
 {
     Char **v;
     sigset_t sigset, osigset;
@@ -1053,7 +1053,7 @@ pintr1(bool wantnl)
  */
 static struct command *savet = NULL;
 void
-process(bool catch)
+process(int catch)
 {
     jmp_buf_t osetexit;
     struct command *t = savet;
@@ -1192,7 +1192,7 @@ void
 dosource(Char **v, struct command *t)
 {
     Char *f;
-    bool    hflg = 0;
+    int    hflg = 0;
     Char    buf[BUFSIZ];
     char    sbuf[BUFSIZ];
 
@@ -1227,7 +1227,7 @@ mailchk(void)
     time_t  t;
     int     intvl, cnt;
     struct stat stb;
-    bool    new;
+    int    new;
 
     v = adrof(STRmail);
     if (v == 0)
