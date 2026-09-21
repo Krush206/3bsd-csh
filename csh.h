@@ -98,8 +98,6 @@ extern FILE *cshin, *cshout, *csherr;
 
 #define	isdir(d)	(S_ISDIR(d.st_mode))
 
-typedef int bool;
-
 #define	eq(a, b)	(Strcmp(a, b) == 0)
 
 /* globone() flags */
