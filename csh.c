@@ -77,7 +77,6 @@ struct Bin      B;
 struct whyle      *whyles;
 struct varent       shvhed, aliases;
 struct Hist       Histlist;
-FILE *cshin, *cshout, *csherr;
 int    chkstop;		/* Warned of stopped jobs... allow exit */
 int    didfds;			/* Have setup i/o fd's for child */
 int    doneinp;		/* EOF indicator after reset from readc */
@@ -162,6 +161,7 @@ int    mflag = 0;
 int    prompt = 1;
 int    enterhist = 0;
 int    tellwhat = 0;
+int     insource;
 
 extern char **environ;
 
@@ -738,7 +738,6 @@ srcfile(char *f, int onlyown, int flag)
  * Source to a unit.  If onlyown it must be our file or our group or
  * we don't chance it.	This occurs on ".cshrc"s and the like.
  */
-int     insource;
 static void
 srcunit(int unit, int onlyown, int hflg)
 {
@@ -752,6 +751,7 @@ srcunit(int unit, int onlyown, int hflg)
     int    oenterhist = enterhist;
     char    OHIST = HIST;
     int    otell = cantell;
+    int savefd[3];
 
     struct Bin saveB;
     sigset_t sigset, osigset;
@@ -762,8 +762,20 @@ srcunit(int unit, int onlyown, int hflg)
 
     if (unit < 0)
 	return;
-    if (didfds)
+    if (didfds) {
+	int i;
+
+	/*
+	 * doio() installs pipes and redirections on 0, 1, and 2. Preserve
+	 * them before donefds() so commands read from a sourced file inherit
+	 * the calling builtin's standard descriptors.
+	 */
+	for (i = 0; i < 3; i++)
+	    savefd[i] = dcopy(i, -1);
 	donefds();
+	for (i = 0; i < 3; i++)
+	    (void) dmove(savefd[i], i);
+    }
     if (onlyown) {
 	struct stat stb;
 
