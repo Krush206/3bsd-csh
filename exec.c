@@ -98,7 +98,7 @@ static void	pexerr(void);
 static void	texec(Char *, Char **);
 static int	hashname(Char *);
 static int	tellmewhat(struct wordent *, Char *, int len);
-static int	executable(Char *, Char *, bool);
+static int	executable(Char *, Char *, int);
 static int	iscommand(Char *);
 
 
@@ -108,7 +108,7 @@ doexec(Char **v, struct command *t)
 {
     Char *dp, **pv, **av, *sav;
     struct varent *pathv;
-    bool slash;
+    int slash;
     int hashval = 0, hashval1, i;
     Char   *blk[2];
     sigset_t sigset;
@@ -502,7 +502,7 @@ iscommand(Char *name)
     Char **pv;
     Char *sav;
     struct varent *v;
-    bool slash = any(short2str(name), '/');
+    int slash = any(short2str(name), '/');
     int hashval = 0, hashval1, i;
 
     v = adrof(STRpath);
@@ -557,7 +557,7 @@ cont:
  * This is a bit kludgy, but in the name of optimization...
  */
 static int
-executable(Char *dir, Char *name, bool dir_ok)
+executable(Char *dir, Char *name, int dir_ok)
 {
     struct stat stbuf;
     Char    path[MAXPATHLEN], *dp, *sp;
@@ -633,7 +633,7 @@ tellmewhat(struct wordent *lexp, Char *str, int len)
     int i;
     struct biltins *bptr;
     struct wordent *sp = lexp->next;
-    bool    aliased = 0, found;
+    int    aliased = 0, found;
     Char   *s0, *s1, *s2, *cmd;
     Char    qc;
 
@@ -690,7 +690,7 @@ tellmewhat(struct wordent *lexp, Char *str, int len)
     if ((i = iscommand(sp->word)) != 0) {
 	Char **pv;
 	struct varent *v;
-	bool    slash = any(short2str(sp->word), '/');
+	int    slash = any(short2str(sp->word), '/');
 
 	v = adrof(STRpath);
 	if (v == 0 || v->vec[0] == 0 || slash)
