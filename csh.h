@@ -583,8 +583,8 @@ extern Char   *STR_BSHELL;
 extern Char   *STR_WORD_CHARS;
 extern Char  **STR_environ;
 
-#define MEM_MAX (128 * 4)
-#define BUF_MAX (1024 * 16)
+#define MEM_MAX (1024)
+#define BUF_MAX (1024 * 24)
 
 /*
  * One-line command parsing structure.
