@@ -799,3 +799,17 @@ x:
 	goto x;
     }
 }
+
+/*
+ * The caller is responsible for putting value in a safe place
+ */
+void
+setv(Char *var, Char *val)
+{
+    Char *(*vec)[2];
+
+    vec = xmalloc(sizeof *vec);
+    (*vec)[0] = val;
+    (*vec)[1] = NULL;
+    set1(var, *vec, &shvhed);
+}
