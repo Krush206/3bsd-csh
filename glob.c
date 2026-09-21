@@ -44,6 +44,17 @@
 #endif
 #include <stdarg.h>
 
+#ifndef GLOB_QUOTE
+/*
+ * glibc has no GLOB_QUOTE flag: unlike BSD's glob(3), glibc's glob()
+ * already treats backslash as an escape character by default (that
+ * behavior is only turned *off* via GLOB_NOESCAPE), so GLOB_QUOTE's
+ * effect is glibc's default already. Defining it as a no-op bit keeps
+ * the flag harmless to OR in below.
+ */
+#define GLOB_QUOTE 0
+#endif
+
 #include "csh.h"
 #include "extern.h"
 
@@ -378,7 +389,10 @@ libglob(Char **vl)
     int     gflgs = GLOB_QUOTE | GLOB_NOMAGIC;
     glob_t  globv;
     char   *ptr;
-    int     nonomatch = adrof(STRnonomatch) != 0, magic = 0, match = 0;
+#ifdef __linux__
+    size_t  prevc;
+#endif
+    int    nonomatch = adrof(STRnonomatch) != 0, magic = 0, match = 0;
 
     if (!vl || !vl[0])
 	return (vl);
@@ -392,6 +406,9 @@ libglob(Char **vl)
 
     do {
 	ptr = short2qstr(*vl);
+#ifdef __linux__
+	prevc = globv.gl_pathc;
+#endif
 	switch (glob(ptr, gflgs, 0, &globv)) {
 	case GLOB_ABORTED:
 	    setname(vis_str(*vl));
@@ -404,7 +421,21 @@ libglob(Char **vl)
 	    break;
 	}
 	if (globv.gl_flags & GLOB_MAGCHAR) {
+	    /*
+	     * glibc's glob_t has no gl_matchc (a BSD extension giving the
+	     * match count from just this call, as opposed to gl_pathc's
+	     * running total across GLOB_APPEND calls). A pathc delta is
+	     * an exact substitute here specifically because GLOB_NOCHECK
+	     * (which would otherwise contaminate the delta with a
+	     * synthesized literal-pattern entry on no-match) is only ever
+	     * added when nonomatch is true, and match is only consulted
+	     * below when nonomatch is false -- the two never coincide.
+	     */
+#ifdef __linux__
+	    match |= (globv.gl_pathc != prevc);
+#else
 	    match |= (globv.gl_matchc != 0);
+#endif
 	    magic = 1;
 	}
 	gflgs |= GLOB_APPEND;
