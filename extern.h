@@ -229,6 +229,7 @@ void	alias(struct wordent *);
 void	freesyn(struct command *);
 struct command *
 	syntax(struct wordent *, struct wordent *, int);
+void	list(struct command *);
 
 /*
  * proc.c
