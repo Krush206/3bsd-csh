@@ -359,7 +359,7 @@ execash(Char **t, struct command *kp)
     int     oSHOUT;
     int     oSHERR;
     int     oOLDSTD;
-    jmp_buf osetexit;
+    jmp_buf_t osetexit;
     int	    my_reenter;
     int     odidfds;
     sig_t   osigint, osigquit, osigterm;
@@ -389,7 +389,7 @@ execash(Char **t, struct command *kp)
 
     lshift(kp->t_dcom, 1);
 
-    getexit(osetexit);
+    getexit(&osetexit);
 
     if ((my_reenter = setexit()) == 0) {
 	SHIN = dcopy(0, -1);
@@ -414,7 +414,7 @@ execash(Char **t, struct command *kp)
     SHERR = dmove(saveDIAG, oSHERR);
     OLDSTD = dmove(saveSTD, oOLDSTD);
 
-    resexit(osetexit);
+    resexit(&osetexit);
     if (my_reenter)
 	stderror(ERR_SILENT);
 }
