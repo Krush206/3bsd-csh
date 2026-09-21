@@ -44,9 +44,9 @@ void	goodbye(void);
 void	importpath(Char *);
 void	initdesc(void);
 void	pintr(int);
-void	pintr1(bool);
+void	pintr1(int);
 void	printprompt(void);
-void	process(bool);
+void	process(int);
 void	rechist(void);
 void	untty(void);
 int	vis_fputc(int, FILE *);
@@ -100,7 +100,7 @@ void	xechoit(Char **);
  * exp.c
  */
 int	expr(Char ***);
-int	exp0(Char ***, bool);
+int	exp0(Char ***, int);
 
 /*
  * file.c
@@ -154,7 +154,7 @@ struct CommandList *retlist(struct command *t);
 /*
  * glob.c
  */
-Char	**dobackp(Char *, bool);
+Char	**dobackp(Char *, int);
 void	  Gcat(Char *, Char *);
 Char	 *globone(Char *, int);
 int	  Gmatch(Char *, Char *);
@@ -172,7 +172,7 @@ int	  sortscmp(const ptr_t, const ptr_t);
  */
 void	dohist(Char **, struct command *);
 struct Hist *
-	enthist(int, struct wordent *, bool);
+	enthist(int, struct wordent *, int);
 void	savehist(struct wordent *);
 
 /*
@@ -187,7 +187,7 @@ Char	*domod(Char *, int);
 void	 freelex(struct wordent *);
 int	 lex(struct wordent *);
 void	 prlex(FILE *, struct wordent *);
-int	 readc(bool);
+int	 readc(int);
 void	 settell(void);
 void	 unreadc(int);
 
@@ -244,7 +244,7 @@ void	donotify(Char **, struct command *);
 void	dostop(Char **, struct command *);
 void	dowait(Char **, struct command *);
 void	palloc(int, struct command *);
-void	panystop(bool);
+void	panystop(int);
 void	pchild(int);
 void	pendjob(void);
 struct process *
