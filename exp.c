@@ -68,16 +68,16 @@
 #define EQMATCH 7
 #define NOTEQMATCH 8
 
-static int	exp1(Char ***, bool);
-static int	exp2_(Char ***, bool);
-static int	exp2a(Char ***, bool);
-static int	exp2b(Char ***, bool);
-static int	exp2c(Char ***, bool);
-static Char *	exp3(Char ***, bool);
-static Char *	exp3a(Char ***, bool);
-static Char *	exp4(Char ***, bool);
-static Char *	exp5(Char ***, bool);
-static Char *	exp6(Char ***, bool);
+static int	exp1(Char ***, int);
+static int	exp2_(Char ***, int);
+static int	exp2a(Char ***, int);
+static int	exp2b(Char ***, int);
+static int	exp2c(Char ***, int);
+static Char *	exp3(Char ***, int);
+static Char *	exp3a(Char ***, int);
+static Char *	exp4(Char ***, int);
+static Char *	exp5(Char ***, int);
+static Char *	exp6(Char ***, int);
 static void	evalav(Char **);
 static int	isa(Char *, int);
 static int	egetn(Char *);
@@ -94,7 +94,7 @@ expr(Char ***vp)
 }
 
 int
-exp0(Char ***vp, bool ignore)
+exp0(Char ***vp, int ignore)
 {
     int p1 = exp1(vp, ignore);
 
@@ -115,7 +115,7 @@ exp0(Char ***vp, bool ignore)
 }
 
 static int
-exp1(Char ***vp, bool ignore)
+exp1(Char ***vp, int ignore)
 {
     int p1 = exp2_(vp, ignore);
 
@@ -136,7 +136,7 @@ exp1(Char ***vp, bool ignore)
 }
 
 static int
-exp2_(Char ***vp, bool ignore)
+exp2_(Char ***vp, int ignore)
 {
     int p1 = exp2a(vp, ignore);
 
@@ -157,7 +157,7 @@ exp2_(Char ***vp, bool ignore)
 }
 
 static int
-exp2a(Char ***vp, bool ignore)
+exp2a(Char ***vp, int ignore)
 {
     int p1 = exp2b(vp, ignore);
 
@@ -178,7 +178,7 @@ exp2a(Char ***vp, bool ignore)
 }
 
 static int
-exp2b(Char ***vp, bool ignore)
+exp2b(Char ***vp, int ignore)
 {
     int p1 = exp2c(vp, ignore);
 
@@ -199,7 +199,7 @@ exp2b(Char ***vp, bool ignore)
 }
 
 static int
-exp2c(Char ***vp, bool ignore)
+exp2c(Char ***vp, int ignore)
 {
     Char *p1 = exp3(vp, ignore);
     Char *p2;
@@ -245,7 +245,7 @@ exp2c(Char ***vp, bool ignore)
 }
 
 static Char *
-exp3(Char ***vp, bool ignore)
+exp3(Char ***vp, int ignore)
 {
     Char *p1, *p2;
     int i;
@@ -289,7 +289,7 @@ exp3(Char ***vp, bool ignore)
 }
 
 static Char *
-exp3a(Char ***vp, bool ignore)
+exp3a(Char ***vp, int ignore)
 {
     Char *p1, *p2, *op;
     int i;
@@ -317,7 +317,7 @@ exp3a(Char ***vp, bool ignore)
 }
 
 static Char *
-exp4(Char ***vp, bool ignore)
+exp4(Char ***vp, int ignore)
 {
     Char *p1, *p2;
     int i = 0;
@@ -352,7 +352,7 @@ exp4(Char ***vp, bool ignore)
 }
 
 static Char *
-exp5(Char ***vp, bool ignore)
+exp5(Char ***vp, int ignore)
 {
     Char *p1, *p2;
     int i = 0;
@@ -397,7 +397,7 @@ exp5(Char ***vp, bool ignore)
 }
 
 static Char *
-exp6(Char ***vp, bool ignore)
+exp6(Char ***vp, int ignore)
 {
     int     ccode, i = 0;
     Char *cp, *dp, *ep;
