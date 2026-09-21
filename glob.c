@@ -98,7 +98,7 @@ static void	expbrace(Char ***, Char ***, int);
 static int	pmatch(Char *, Char *);
 static void	pword(void);
 static void	psave(int);
-static void	backeval(Char *, bool);
+static void	backeval(Char *, int);
 
 
 static Char *
@@ -613,7 +613,7 @@ tglob(Char **t)
  * words only at newlines.
  */
 Char  **
-dobackp(Char *cp, bool literal)
+dobackp(Char *cp, int literal)
 {
     Char *lp, *rp;
     Char   *ep, word[MAXPATHLEN];
@@ -656,12 +656,12 @@ dobackp(Char *cp, bool literal)
 }
 
 static void
-backeval(Char *cp, bool literal)
+backeval(Char *cp, int literal)
 {
     int icnt, c;
     Char *ip;
     struct command faket;
-    bool    hadnl;
+    int    hadnl;
     int     pvec[2], quoted;
     Char   *fakecom[2], ibuf[BUFSIZ];
     char    tibuf[BUFSIZ];
