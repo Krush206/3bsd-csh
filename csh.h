@@ -346,9 +346,10 @@ struct command {
 #define	NODE_COMMAND	1	/* t_dcom <t_dlef >t_drit	 */
 #define	NODE_PAREN	2	/* ( t_dspr ) <t_dlef >t_drit	 */
 #define	NODE_PIPE	3	/* t_dlef | t_drit		 */
-#define	NODE_LIST	4	/* t_dlef ; t_drit		 */
+#define	NODE_LIST	4	/* t_dlef & t_drit		 */
 #define	NODE_OR		5	/* t_dlef || t_drit		 */
 #define	NODE_AND	6	/* t_dlef && t_drit		 */
+#define	NODE_LINE	7	/* t_dlef ; t_drit ;		 */
     short   t_dflg;		/* Flags, e.g. F_AMPERSAND|... 	 */
 #define	F_SAVE	(F_NICE|F_TIME|F_NOHUP)	/* save these when re-doing 	 */
 
@@ -424,6 +425,7 @@ extern int nsrchn;
 #define	T_TEST		16
 #define	T_THEN		17
 #define	T_WHILE		18
+#define	T_RETURN	19
 
 /*
  * Structure defining the existing while/foreach loops at this
