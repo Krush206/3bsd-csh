@@ -71,7 +71,6 @@ static void	 pkill(Char **v, int);
 static struct	process
 		*pgetcurr(struct process *);
 static void	 okpcntl(void);
-static const char *sys_siglist(int);
 
 #ifndef __linux__
 #define sys_siglist(signal) sys_siglist[signal]
@@ -847,9 +846,7 @@ pprint(struct process *pp, bool flag)
 			    && reason != SIGINT
 			    && (reason != SIGPIPE
 				|| (pp->p_flags & PPOU) == 0))) {
-			(void) fprintf(cshout, format,
-				       sys_siglist((unsigned char)
-						   pp->p_reason));
+			(void) fprintf(cshout, format, strsignal(pp->p_reason));
 			hadnl = 0;
 		    }
 		    break;
