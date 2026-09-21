@@ -466,7 +466,7 @@ void
 dowhile(Char **v, struct command *t)
 {
     int status;
-    bool again = whyles != 0 && SEEKEQ(&whyles->w_start, &lineloc) &&
+    int again = whyles != 0 && SEEKEQ(&whyles->w_start, &lineloc) &&
     whyles->w_fename == 0;
 
     v++;
