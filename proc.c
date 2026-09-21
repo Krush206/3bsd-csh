@@ -71,6 +71,115 @@ static void	 pkill(Char **v, int);
 static struct	process
 		*pgetcurr(struct process *);
 static void	 okpcntl(void);
+static const char *sys_siglist(int);
+
+#ifndef __linux__
+#define sys_siglist(signal) sys_siglist[signal]
+#else
+/*
+ * Modern glibc (>= 2.32) no longer declares sys_siglist in <signal.h>.
+ * strsignal(3) returns full descriptive text ("Hangup", "Segmentation
+ * fault", ...), which breaks both "kill -l"'s short-name listing and
+ * dokill()'s name matching against user-typed mnemonics like "HUP", so
+ * a real short-name table is needed instead of a naive strsignal() swap.
+ * Written as a switch rather than a designated-initializer array, since
+ * designated initializers are C99 and this file targets ANSI C (C89).
+ */
+static const char *
+sys_siglist(int signum)
+{
+    /*
+     * SIGRTMIN/SIGRTMAX are not compile-time constants on glibc (they
+     * are function calls reading the process's reserved real-time
+     * signal range), so they cannot appear as switch case labels and
+     * must be checked separately, at runtime, before the switch.
+     */
+    if (signum >= SIGRTMIN && signum <= SIGRTMAX) {
+	static char rtbuf[32];
+
+	if (signum == SIGRTMIN)
+	    return "RTMIN";
+	if (signum == SIGRTMAX)
+	    return "RTMAX";
+	if (signum <= (SIGRTMIN + SIGRTMAX) / 2)
+	    snprintf(rtbuf, sizeof rtbuf, "RTMIN+%d", signum - SIGRTMIN);
+	else
+	    snprintf(rtbuf, sizeof rtbuf, "RTMAX-%d", SIGRTMAX - signum);
+	return rtbuf;
+    }
+    switch (signum) {
+    case SIGHUP:
+	return "HUP";
+    case SIGINT:
+	return "INT";
+    case SIGQUIT:
+	return "QUIT";
+    case SIGILL:
+	return "ILL";
+    case SIGTRAP:
+	return "TRAP";
+    case SIGABRT:
+	return "ABRT";
+    case SIGBUS:
+	return "BUS";
+    case SIGFPE:
+	return "FPE";
+    case SIGKILL:
+	return "KILL";
+    case SIGUSR1:
+	return "USR1";
+    case SIGSEGV:
+	return "SEGV";
+    case SIGUSR2:
+	return "USR2";
+    case SIGPIPE:
+	return "PIPE";
+    case SIGALRM:
+	return "ALRM";
+    case SIGTERM:
+	return "TERM";
+#ifdef SIGSTKFLT
+    case SIGSTKFLT:
+	return "STKFLT";
+#endif
+    case SIGCHLD:
+	return "CHLD";
+    case SIGCONT:
+	return "CONT";
+    case SIGSTOP:
+	return "STOP";
+    case SIGTSTP:
+	return "TSTP";
+    case SIGTTIN:
+	return "TTIN";
+    case SIGTTOU:
+	return "TTOU";
+    case SIGURG:
+	return "URG";
+    case SIGXCPU:
+	return "XCPU";
+    case SIGXFSZ:
+	return "XFSZ";
+    case SIGVTALRM:
+	return "VTALRM";
+    case SIGPROF:
+	return "PROF";
+    case SIGWINCH:
+	return "WINCH";
+#ifdef SIGIO
+    case SIGIO:
+	return "IO";
+#endif
+#ifdef SIGPWR
+    case SIGPWR:
+	return "PWR";
+#endif
+    case SIGSYS:
+	return "SYS";
+    }
+    return "";
+}
+#endif
 
 /*
  * pchild - called at interrupt level by the SIGCHLD signal
@@ -739,8 +848,8 @@ pprint(struct process *pp, bool flag)
 			    && (reason != SIGPIPE
 				|| (pp->p_flags & PPOU) == 0))) {
 			(void) fprintf(cshout, format,
-				       sys_siglist[(unsigned char)
-						   pp->p_reason]);
+				       sys_siglist((unsigned char)
+						   pp->p_reason));
 			hadnl = 0;
 		    }
 		    break;
@@ -961,10 +1070,10 @@ dokill(Char **v, struct command *t)
 		else if (signum == 0)
 		    (void) fputc('0', cshout); /* 0's symbolic name is '0' */
 		else
-		    (void) fprintf(cshout, "%s ", sys_signame[signum]);
+		    (void) fprintf(cshout, "%s ", sys_siglist(signum));
 	    } else {
 		for (signum = 1; signum < NSIG; signum++) {
-		    (void) fprintf(cshout, "%s ", sys_signame[signum]);
+		    (void) fprintf(cshout, "%s ", sys_siglist(signum));
 		    if (signum == NSIG / 2)
 			(void) fputc('\n', cshout);
 	    	}
@@ -991,9 +1100,9 @@ dokill(Char **v, struct command *t)
 	    }
 
 	    for (signum = 1; signum < NSIG; signum++)
-		if (!strcasecmp(sys_signame[signum], name) ||
+		if (!strcasecmp(sys_siglist(signum), name) ||
 		    (strlen(name) > 3 && !strncasecmp("SIG", name, 3) &&
-		     !strcasecmp(sys_signame[signum], name + 3)))
+		     !strcasecmp(sys_siglist(signum), name + 3)))
 			break;
 
 	    if (signum == NSIG) {
