@@ -148,6 +148,8 @@ void	gotolab(Char *);
 int	srchx(Char *);
 void	unalias(Char **, struct command *);
 void	wfree(void);
+void	dofunction(Char **, struct command *);
+struct CommandList *retlist(struct command *t);
 
 /*
  * glob.c
