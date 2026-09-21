@@ -122,6 +122,7 @@ Char STRpushdsilent[]	= { 'p', 'u', 's', 'h', 'd', 's', 'i', 'l', 'e', 'n',
 			    't', '\0' };
 Char STRret[]		= { '\n', '\0' };
 Char STRsavehist[]	= { 's', 'a', 'v', 'e', 'h', 'i', 's', 't', '\0' };
+Char STRsemi[]		= { ';', '\0' };
 Char STRsemisp[]	= { ';', ' ', '\0' };
 Char STRshell[]		= { 's', 'h', 'e', 'l', 'l', '\0' };
 Char STRslash[]		= { '/', '\0' };
