@@ -272,7 +272,11 @@ static char *errorlist[] =
     "Malformed file inquiry",
 #define ERR_SELOVFL	109
     "Selector overflow",
-#define ERR_INVALID	110
+#define	ERR_FNBEGIN	110
+    "Function name must begin with a letter",
+#define	ERR_FNALNUM	111
+    "Function name must contain alphanumeric characters",
+#define ERR_INVALID	112
     "Invalid Error"
 };
 
